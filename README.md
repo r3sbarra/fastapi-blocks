@@ -36,7 +36,7 @@ requirements = []
 statics = "static"
 template_router = "router.py"
 api_router = "api_router.py"
-load_order = 1
+load_order = 9
 ```
 
 - `name`: The name of the block.
@@ -59,7 +59,7 @@ app = FastAPI()
 
 # Initialize the BlockManager
 block_manager = BlockManager(blocks_folder="blocks")
-block_manager.init_app(app)
+app = block_manager.init_app(app)
 
 @app.get("/")
 def read_root():
