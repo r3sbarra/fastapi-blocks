@@ -1,0 +1,5 @@
+# Add your project dependencies here, e.g.,
+fastapi
+pydantic
+pydantic-settings
+toml
