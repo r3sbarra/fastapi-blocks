@@ -2,9 +2,15 @@ from types import ModuleType
 from pydantic import BaseModel, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List, Any
+
 from fastapi import FastAPI, APIRouter
+from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
+from jinja2 import FileSystemLoader, Environment
+
 from .settings import BlockSettingsBase, BlockSettingsMixin
+
 import logging
 import os
 import importlib
@@ -39,6 +45,8 @@ class BlockManager(BaseModel):
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
     
+    templates : Optional[Jinja2Templates] = None
+    
     # hooks
     _start_hooks : List = []
     _block_preload_hooks : List = []
@@ -69,46 +77,12 @@ class BlockManager(BaseModel):
         
         self.logger = app_instance.logger or self.logger
         
-        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        # Basic setup
+        HAS_INSTALLS = self._setup()
         
-        # Check to see if new requirements were installed
-        HAS_INSTALLS = False
-        
-        # Build settings class
-        extra_settings_classes = []
-        if self.block_infos["extra_block_settings"]:
-            for extra_settings_path in self.block_infos["extra_block_settings"]:
-                module = importlib.import_module(extra_settings_path)
-                if hasattr(module, 'Settings') and issubclass(getattr(module, 'Settings'), BlockSettingsMixin):
-                    extra_settings_classes.append(getattr(module, 'Settings'))
-        
-        # Create a dynamic settings class
-        class DynamicBlockSettings(*extra_settings_classes, BlockSettingsBase):
-            model_config = SettingsConfigDict(extra='allow')
-            
-            def get_dict(self) -> dict:
-                return super().get_dict()
-    
-        # Look for block_config.toml under some projects_root_dir
-        if os.path.exists(projects_root_dir):
-            for item in os.scandir(projects_root_dir):
-                try:
-                    block_config_path = os.path.join(item.path, "block_config.toml")
-                    
-                    # Look for folders with block_config.toml
-                    if item.is_dir() and os.path.exists(block_config_path):
-                        
-                        new_installs = self._load_block_config(item.path, block_config_path, settings_class=DynamicBlockSettings)
-                        HAS_INSTALLS = HAS_INSTALLS or new_installs
-                        
-                        self._save_settings_toml()
-                            
-                except Exception as e:
-                    if not self.allow_block_import_failure:
-                        error_msg = f"Failed to import block config at path: {item.path}: {e}"
-                        raise Exception(error_msg)
-        else:
-            raise Exception("No blocks folder found.")
+        if not self.templates:
+            jinja_env = Environment(loader=FileSystemLoader(self.block_infos["templates_dir"]))
+            self.templates = Jinja2Templates(env=jinja_env)
 
         if HAS_INSTALLS and self.restart_on_install:
             self.logger.warning("New items installed, please restart the server.")
@@ -162,6 +136,47 @@ class BlockManager(BaseModel):
         app_instance.include_router(self.api_router)
         
         return app_instance
+    
+    
+    def _setup(self) -> bool:
+        HAS_INSTALLS = False
+        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        # Build settings class
+        extra_settings_classes = []
+        if self.block_infos["extra_block_settings"]:
+            for extra_settings_path in self.block_infos["extra_block_settings"]:
+                module = importlib.import_module(extra_settings_path)
+                if hasattr(module, 'Settings') and issubclass(getattr(module, 'Settings'), BlockSettingsMixin):
+                    extra_settings_classes.append(getattr(module, 'Settings'))
+        
+        # Create a dynamic settings class
+        class DynamicBlockSettings(*extra_settings_classes, BlockSettingsBase):
+            model_config = SettingsConfigDict(extra='allow')
+            
+            def get_dict(self) -> dict:
+                return super().get_dict()
+    
+        # Look for block_config.toml under some projects_root_dir
+        if os.path.exists(projects_root_dir):
+            for item in os.scandir(projects_root_dir):
+                try:
+                    block_config_path = os.path.join(item.path, "block_config.toml")
+                    
+                    # Look for folders with block_config.toml
+                    if item.is_dir() and os.path.exists(block_config_path):
+                        
+                        new_installs = self._load_block_config(item.path, block_config_path, settings_class=DynamicBlockSettings)
+                        HAS_INSTALLS = HAS_INSTALLS or new_installs
+                        
+                        self._save_settings_toml()
+                            
+                except Exception as e:
+                    if not self.allow_block_import_failure:
+                        error_msg = f"Failed to import block config at path: {item.path}: {e}"
+                        raise Exception(error_msg)
+        else:
+            raise Exception("No blocks folder found.")
+        return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
         if block_name in self.block_infos["blocks"]:
@@ -224,7 +239,7 @@ class BlockManager(BaseModel):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.block_infos = {"blocks": {}, "installs": [], "extra_block_settings": []}
+            self.block_infos = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": []}
             self._save_settings_toml()
         else:
             with open(toml_path, 'r') as f:
@@ -236,6 +251,8 @@ class BlockManager(BaseModel):
                     self.block_infos["installs"] = []
                 if "extra_block_settings" not in self.block_infos.keys():
                     self.block_infos["extra_block_settings"] = []
+                if "templates_dir" not in self.block_infos.keys():
+                    self.block_infos["templates_dir"] = []
         
     def _save_settings_toml(self):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
