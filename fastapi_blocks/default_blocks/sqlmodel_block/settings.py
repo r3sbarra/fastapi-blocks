@@ -7,5 +7,6 @@ class Settings(BlockSettingsMixin):
     
     def get_dict(self) -> dict:
         super_dict = super().get_dict()
-        super_dict['schemas'] = self._path_to_module(os.path.join(self.block_path, self.schemas)) if self.schemas else None
+        if self.schemas:
+            super_dict['schemas'] = self._path_to_module(os.path.join(self.block_path, self.schemas))
         return super_dict

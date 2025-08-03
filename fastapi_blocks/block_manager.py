@@ -12,14 +12,7 @@ import toml
 import subprocess
 import sys
 
-class _Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(_Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-class BlockManager(BaseModel, metaclass=_Singleton):
+class BlockManager(BaseModel):
     """
     Manages FastAPI blocks, including their discovery, dependency installation, and integration.
 
@@ -46,8 +39,8 @@ class BlockManager(BaseModel, metaclass=_Singleton):
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
     
-    _block_preload_hooks : List[function] = []
-    _block_postload_hooks : List[function] = []
+    _block_preload_hooks : List = []
+    _block_postload_hooks : List = []
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
         
@@ -189,8 +182,13 @@ class BlockManager(BaseModel, metaclass=_Singleton):
     
         block_info_dict = block_settings.get_dict()
         
-        self.block_infos["blocks"][block_settings.name] = block_info_dict
-        
+        if block_settings.name not in self.block_infos["blocks"]:
+            self.block_infos["blocks"][block_settings.name] = block_info_dict
+        else:
+            for key, items in block_info_dict.items():
+                if key not in self.block_infos["blocks"][block_settings.name].keys():
+                    self.block_infos["blocks"][block_settings.name][key] = items
+            
         # Check if extra block settings in settings, else require restart
         if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_infos['extra_block_settings']:
             self.block_infos["extra_block_settings"].append(block_info_dict['extra_block_settings'])
