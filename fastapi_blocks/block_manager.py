@@ -39,6 +39,8 @@ class BlockManager(BaseModel):
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
     
+    # hooks
+    _start_hooks : List = []
     _block_preload_hooks : List = []
     _block_postload_hooks : List = []
     
@@ -57,6 +59,10 @@ class BlockManager(BaseModel):
         
         # block manager toml
         self._load_settings_toml()
+        
+        # Run start hooks
+        # .ie Schemas should be loaded in DB via this one
+        self._run_hooks(self._start_hooks, blocks_infos=self.block_infos)
         
         # Attach to app
         app_instance.block_manager = self
@@ -117,9 +123,7 @@ class BlockManager(BaseModel):
             
             try:
                 # Run preload hooks
-                if self._block_preload_hooks:
-                    for fn in self._block_preload_hooks:
-                        fn(block_info)
+                self._run_hooks(self._block_preload_hooks, block_info=block_info)
                         
                 # Mount statics
                 if block_info['statics'] and os.path.exists(block_info['statics']):
@@ -146,9 +150,7 @@ class BlockManager(BaseModel):
                         self.logger.info("Mounted API router: %s", block_info['api_router'])
                         
                 # Run postload hooks
-                if self._block_postload_hooks:
-                    for fn in self._block_postload_hooks:
-                        fn(block_info)
+                self._run_hooks(self._block_postload_hooks, block_info=block_info)
                 
             except Exception as e:
                 self.logger.exception("Failed to import block %s: %s", block_name, e)
@@ -165,6 +167,12 @@ class BlockManager(BaseModel):
         if block_name in self.block_infos["blocks"]:
             return importlib.import_module(self.block_infos["blocks"][block_name]['module'])
         return None
+        
+    def _run_hooks(self, hooks : List, **kwargs) -> None:
+        if hooks:
+            for fn in hooks:
+                if callable(fn):
+                    fn(**kwargs)
         
     def _load_block_config(self, 
             block_path: str, 
