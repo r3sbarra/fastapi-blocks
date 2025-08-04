@@ -7,8 +7,10 @@ name = "fastapi-blocks"
 version = "0.1.0"
 description = "A library for creating modular FastAPI applications."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "MIT"}
+authors = [{ name = "r3sbarra (Richard)", email= "richardmark.pi@gmail.com"}]
+maintainers = [{ name = "r3sbarra (Richard)", email= "richardmark.pi@gmail.com"}]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
