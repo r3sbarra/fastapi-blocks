@@ -249,6 +249,7 @@ class BlockManager(BaseModel):
             
         block_settings = settings_class(**block_config, block_path=block_path)
         
+        # Hooks
         block_hooks_start = block_settings._start_hooks()
         block_hooks_preload = block_settings._preload_hooks()
         block_hooks_postload = block_settings._postload_hooks()
