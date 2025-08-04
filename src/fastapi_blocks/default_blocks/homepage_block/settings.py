@@ -1,11 +1,13 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi_blocks import BlockSettingsMixin
 
+def _say_hi(*args, **kwargs):
+    if 'logger' in kwargs.keys():
+        logger = kwargs['logger']
+        logger.info("Hi")
+    else:
+        print("Hi")
+    
 class Settings(BlockSettingsMixin):
     is_main : Optional[bool] = None
-    
-    def get_dict(self) -> dict:
-        super_dict = super().get_dict()
-        if self.is_main != None:
-            super_dict['is_main'] = self.is_main
-        return super_dict
+    start_hooks : List = [_say_hi]

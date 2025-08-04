@@ -1,7 +1,7 @@
 from types import ModuleType
 from pydantic import BaseModel, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from fastapi import FastAPI, APIRouter
 from fastapi.templating import Jinja2Templates
@@ -17,6 +17,7 @@ import importlib
 import toml
 import subprocess
 import sys
+import inspect
     
 class BlockManager(BaseModel):
     """
@@ -41,7 +42,7 @@ class BlockManager(BaseModel):
     allow_block_import_failure: bool = False
     restart_on_install: bool = True
     working_dir: str = os.getcwd()
-    block_infos: dict = {}
+    block_manager_info: dict = {}
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
     
@@ -69,13 +70,13 @@ class BlockManager(BaseModel):
         self._load_settings_toml()
         
         # Load Hooks
-        self._start_hooks = self.block_infos["hooks"]["_start_hooks"] or []
-        self._block_preload_hooks = self.block_infos["hooks"]["_block_preload_hooks"] or []
-        self._block_postload_hooks = self.block_infos["hooks"]["_block_postload_hooks"] or []
+        self._start_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_start_hooks", {}))
+        self._block_preload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_preload_hooks", {}))
+        self._block_postload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_postload_hooks", {}))
         
         # Run start hooks
         # .ie Schemas should be loaded in DB via this one
-        self._run_hooks(self._start_hooks, blocks_infos=self.block_infos)
+        self._run_hooks(self._start_hooks, blocks_infos=self.block_manager_info.get("blocks", {}))
         
         # Attach to app
         app_instance.block_manager = self
@@ -88,7 +89,7 @@ class BlockManager(BaseModel):
         
         # Setup Templates
         if not self.templates:
-            jinja_env = Environment(loader=FileSystemLoader(self.block_infos["templates_dir"]))
+            jinja_env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
             self.templates = Jinja2Templates(env=jinja_env)
 
         if HAS_INSTALLS and self.restart_on_install:
@@ -96,7 +97,7 @@ class BlockManager(BaseModel):
             os._exit(0)
             
         # Get items load order
-        sorted_blocks = sorted(self.block_infos["blocks"].items(), key=lambda x: x[1]['load_order'])
+        sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
         
         for block_name, block_info in sorted_blocks:
             
@@ -150,8 +151,8 @@ class BlockManager(BaseModel):
         projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
         # Build settings class
         extra_settings_classes = []
-        if self.block_infos["extra_block_settings"]:
-            for extra_settings_path in self.block_infos["extra_block_settings"]:
+        if self.block_manager_info["extra_block_settings"]:
+            for extra_settings_path in self.block_manager_info["extra_block_settings"]:
                 module = importlib.import_module(extra_settings_path)
                 if hasattr(module, 'Settings') and issubclass(getattr(module, 'Settings'), BlockSettingsMixin):
                     extra_settings_classes.append(getattr(module, 'Settings'))
@@ -162,6 +163,9 @@ class BlockManager(BaseModel):
             
             def get_dict(self) -> dict:
                 return super().get_dict()
+            
+            def get_hooks(self) -> dict:
+                return super().get_hooks()
     
         # Look for block_config.toml under some projects_root_dir
         if os.path.exists(projects_root_dir):
@@ -186,9 +190,26 @@ class BlockManager(BaseModel):
         return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
-        if block_name in self.block_infos["blocks"]:
-            return importlib.import_module(self.block_infos["blocks"][block_name]['module'])
+        if block_name in self.block_manager_info["blocks"]:
+            return importlib.import_module(self.block_manager_info["blocks"][block_name]['module'])
         return None
+    
+    def _resolve_hooks(self, hooks: Dict) -> List:
+        resolved_hooks = []
+        for module_path in hooks.keys():
+            if not hooks[module_path]:
+                continue
+            try:
+                module = importlib.import_module(module_path)
+                for function_name in hooks[module_path]:
+                    func = getattr(module, function_name)
+                    if callable(func):
+                        resolved_hooks.append(func)
+                    else:
+                        self.logger.warning(f"Hook '{function_name}' in module '{module_path}' is not callable.")
+            except (ImportError, AttributeError) as e:
+                self.logger.error(f"Error resolving hook at '{module_path}': {e}")
+        return resolved_hooks
         
     def _run_hooks(self, hooks : List, **kwargs) -> None:
         if hooks:
@@ -196,6 +217,25 @@ class BlockManager(BaseModel):
                 if callable(fn):
                     fn(**kwargs)
         
+    def _attach_hook(self, hook_group : str, block_hooks : Dict) -> bool:
+        HAS_NEW = False
+        if block_hooks.get(hook_group, None):
+            for hook in block_hooks.get(hook_group):
+                if callable(hook):
+                    fn_name = hook.__name__
+                    module = inspect.getmodule(hook)
+                    if module:
+                        if hook_group not in self.block_manager_info["hooks"].keys():
+                            self.block_manager_info["hooks"][hook_group] = {}
+                        
+                        if module.__name__ not in self.block_manager_info["hooks"][hook_group].keys():
+                            self.block_manager_info["hooks"][hook_group][module.__name__] = []
+                        
+                        if fn_name not in self.block_manager_info["hooks"][hook_group][module.__name__]:
+                            self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
+                            HAS_NEW = True
+        return HAS_NEW
+    
     def _load_block_config(self, 
             block_path: str, 
             config_path : str,
@@ -209,29 +249,34 @@ class BlockManager(BaseModel):
             block_config = toml.load(f)
             
         block_settings = settings_class(**block_config, block_path=block_path)
+        
+        block_hooks = block_settings._get_hooks()
+        
+        for hook_group in ["_start_hooks", "_block_preload_hooks", "_block_postload_hooks"]:
+            requires_restart = self._attach_hook(hook_group, block_hooks) or requires_restart
     
         block_info_dict = block_settings.get_dict()
         
-        if block_settings.name not in self.block_infos["blocks"]:
-            self.block_infos["blocks"][block_settings.name] = block_info_dict
+        if block_settings.name not in self.block_manager_info["blocks"]:
+            self.block_manager_info["blocks"][block_settings.name] = block_info_dict
         else:
             for key, items in block_info_dict.items():
-                if key not in self.block_infos["blocks"][block_settings.name].keys():
-                    self.block_infos["blocks"][block_settings.name][key] = items
+                if key not in self.block_manager_info["blocks"][block_settings.name].keys():
+                    self.block_manager_info["blocks"][block_settings.name][key] = items
             
         # Check if extra block settings in settings, else require restart
-        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_infos['extra_block_settings']:
-            self.block_infos["extra_block_settings"].append(block_info_dict['extra_block_settings'])
+        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
+            self.block_manager_info["extra_block_settings"].append(block_info_dict['extra_block_settings'])
             requires_restart = True
         
         # Check if has requirements, or requirements has changed
         if block_settings.requirements or \
-            self.block_infos["blocks"][block_settings.name]['requirements'] != block_settings.requirements:
+            self.block_manager_info["blocks"][block_settings.name]['requirements'] != block_settings.requirements:
                 
             # Go through requirements and install if not installed
             for requirement in block_settings.requirements:
-                if requirement not in self.block_infos["installs"]:
-                    self.block_infos["installs"].append(requirement)
+                if requirement not in self.block_manager_info["installs"]:
+                    self.block_manager_info["installs"].append(requirement)
                     requires_restart = True
                     try:
                         subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
@@ -246,29 +291,29 @@ class BlockManager(BaseModel):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.block_infos = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
+            self.block_manager_info = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
             self._save_settings_toml()
         else:
             with open(toml_path, 'r') as f:
-                self.block_infos = toml.load(f)
+                self.block_manager_info = toml.load(f)
                 
-                if "blocks" not in self.block_infos.keys():
-                    self.block_infos["blocks"] = {}
-                if "installs" not in self.block_infos.keys():
-                    self.block_infos["installs"] = []
-                if "extra_block_settings" not in self.block_infos.keys():
-                    self.block_infos["extra_block_settings"] = []
-                if "templates_dir" not in self.block_infos.keys():
-                    self.block_infos["templates_dir"] = []
+                if "blocks" not in self.block_manager_info.keys():
+                    self.block_manager_info["blocks"] = {}
+                if "installs" not in self.block_manager_info.keys():
+                    self.block_manager_info["installs"] = []
+                if "extra_block_settings" not in self.block_manager_info.keys():
+                    self.block_manager_info["extra_block_settings"] = []
+                if "templates_dir" not in self.block_manager_info.keys():
+                    self.block_manager_info["templates_dir"] = []
                     
-                if "hooks" not in self.block_infos.keys():
-                    self.block_infos["hooks"] = {
-                        "start_hooks" : [],
-                        "block_preload_hooks" : [],
-                        "block_postload_hooks" : []
+                if "hooks" not in self.block_manager_info.keys():
+                    self.block_manager_info["hooks"] = {
+                        "_start_hooks" : {},
+                        "_block_preload_hooks" : {},
+                        "_block_postload_hooks" : {}
                     }
         
     def _save_settings_toml(self):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         with open(toml_path, 'w') as f:
-            toml.dump(self.block_infos, f)
+            toml.dump(self.block_manager_info, f)
