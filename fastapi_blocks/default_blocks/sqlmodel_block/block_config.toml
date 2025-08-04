@@ -1,4 +1,0 @@
-name = "fastapi-blocks-sqlmodel"
-version = 0.1
-requirements = ["sqlmodel"]
-extra_block_settings = "settings"

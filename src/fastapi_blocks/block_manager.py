@@ -17,7 +17,7 @@ import importlib
 import toml
 import subprocess
 import sys
-
+    
 class BlockManager(BaseModel):
     """
     Manages FastAPI blocks, including their discovery, dependency installation, and integration.
@@ -48,9 +48,9 @@ class BlockManager(BaseModel):
     templates : Optional[Jinja2Templates] = None
     
     # hooks
-    _start_hooks : List = []
-    _block_preload_hooks : List = []
-    _block_postload_hooks : List = []
+    _start_hooks : List = []            # Runs right after loading block infos
+    _block_preload_hooks : List = []    # Runs before each block info is loaded
+    _block_postload_hooks : List = []   # Runs after each block info is loaded
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
         
@@ -68,6 +68,11 @@ class BlockManager(BaseModel):
         # block manager toml
         self._load_settings_toml()
         
+        # Load Hooks
+        self._start_hooks = self.block_infos["hooks"]["_start_hooks"] or []
+        self._block_preload_hooks = self.block_infos["hooks"]["_block_preload_hooks"] or []
+        self._block_postload_hooks = self.block_infos["hooks"]["_block_postload_hooks"] or []
+        
         # Run start hooks
         # .ie Schemas should be loaded in DB via this one
         self._run_hooks(self._start_hooks, blocks_infos=self.block_infos)
@@ -75,11 +80,13 @@ class BlockManager(BaseModel):
         # Attach to app
         app_instance.block_manager = self
         
+        # Use app logger if exists
         self.logger = app_instance.logger or self.logger
         
         # Basic setup
         HAS_INSTALLS = self._setup()
         
+        # Setup Templates
         if not self.templates:
             jinja_env = Environment(loader=FileSystemLoader(self.block_infos["templates_dir"]))
             self.templates = Jinja2Templates(env=jinja_env)
@@ -175,7 +182,7 @@ class BlockManager(BaseModel):
                         error_msg = f"Failed to import block config at path: {item.path}: {e}"
                         raise Exception(error_msg)
         else:
-            raise Exception("No blocks folder found.")
+            raise Exception("No blocks folder found")
         return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
@@ -239,7 +246,7 @@ class BlockManager(BaseModel):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.block_infos = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": []}
+            self.block_infos = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
             self._save_settings_toml()
         else:
             with open(toml_path, 'r') as f:
@@ -253,6 +260,13 @@ class BlockManager(BaseModel):
                     self.block_infos["extra_block_settings"] = []
                 if "templates_dir" not in self.block_infos.keys():
                     self.block_infos["templates_dir"] = []
+                    
+                if "hooks" not in self.block_infos.keys():
+                    self.block_infos["hooks"] = {
+                        "start_hooks" : [],
+                        "block_preload_hooks" : [],
+                        "block_postload_hooks" : []
+                    }
         
     def _save_settings_toml(self):
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')

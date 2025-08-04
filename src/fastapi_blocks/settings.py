@@ -22,6 +22,7 @@ class BlockSettingsBase(BaseSettings):
     """
     name : str
     version : float
+    block_path : str
     requirements : List[str] = []
     dependancies : List[str] = []
     statics : Optional[str] = None
@@ -30,7 +31,6 @@ class BlockSettingsBase(BaseSettings):
     api_router : Optional[str] = None
     extra_block_settings : Optional[str] = None
     load_order : int = 9
-    block_path : str
     project_path : str = os.getcwd()
     
     model_config = SettingsConfigDict(extra='allow')
