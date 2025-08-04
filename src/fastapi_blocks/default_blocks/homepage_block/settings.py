@@ -10,4 +10,6 @@ def _say_hi(*args, **kwargs):
     
 class Settings(BlockSettingsMixin):
     is_main : Optional[bool] = None
-    start_hooks : List = [_say_hi]
+
+    def _start_hooks(self) -> List:
+        return super()._start_hooks() + [_say_hi]

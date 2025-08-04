@@ -37,10 +37,6 @@ class BlockSettingsBase(BaseSettings):
     
     project_path : str = os.getcwd()
     
-    start_hooks : List = []
-    preload_hooks : List = []
-    postload_hooks : List = []
-    
     model_config = SettingsConfigDict(extra='allow')
     
     def __init__(self, *args, **kwargs):
@@ -54,10 +50,11 @@ class BlockSettingsBase(BaseSettings):
         Returns:
             Dict: A dictionary representation of the block settings.
         """
-        return self.model_dump(exclude={'start_hooks', 'preload_hooks', 'postload_hooks', 'project_path'})
+        return self.model_dump(exclude={'project_path'})
         
-    def _get_hooks(self) -> Dict:
-        return {}
+    def _start_hooks(self) -> List: return []
+    def _preload_hooks(self) -> List: return []
+    def _postload_hooks(self) -> List: return []
     
     @field_serializer('statics', 'templates_dir')
     def serialize_to_path(self, value: str):
@@ -104,26 +101,9 @@ class BlockSettingsMixin(BaseSettings):
     """
     block_path : Optional[str] = None
     
-    start_hooks : List = []
-    preload_hooks : List = []
-    postload_hooks : List = []
-    
     model_config = SettingsConfigDict(arbitrary_types_allowed=True)
     
-    def _get_hooks(self) -> Dict:
-        super_dict = super()._get_hooks() | {}
-        
-        if self.start_hooks:
-            if not super_dict.get('_start_hooks'):
-                super_dict['_start_hooks'] = []
-            super_dict['_start_hooks'] = super_dict['_start_hooks'] + self.start_hooks
-        if self.preload_hooks:
-            if not super_dict.get('_block_preload_hooks'):
-                super_dict['_block_preload_hooks'] = []
-            super_dict['_block_preload_hooks'] = super_dict['_block_preload_hooks'] + self.preload_hooks
-        if self.postload_hooks:
-            if not super_dict.get('_block_postload_hooks'):
-                super_dict['_block_postload_hooks'] = []
-            super_dict['_block_postload_hooks'] = super_dict['_block_postload_hooks'] + self.postload_hooks
-        
-        return super_dict
+    def _start_hooks(self) -> List: return super()._start_hooks() or []
+    def _postload_hooks(self) -> List: return super()._postload_hooks() or [] 
+    def _preload_hooks(self) -> List: return super()._preload_hooks() or []
+    

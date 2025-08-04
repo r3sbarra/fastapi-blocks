@@ -217,23 +217,22 @@ class BlockManager(BaseModel):
                 if callable(fn):
                     fn(**kwargs)
         
-    def _attach_hook(self, hook_group : str, block_hooks : Dict) -> bool:
+    def _attach_hook(self, hook_group : str, block_hooks : List) -> bool:
         HAS_NEW = False
-        if block_hooks.get(hook_group, None):
-            for hook in block_hooks.get(hook_group):
-                if callable(hook):
-                    fn_name = hook.__name__
-                    module = inspect.getmodule(hook)
-                    if module:
-                        if hook_group not in self.block_manager_info["hooks"].keys():
-                            self.block_manager_info["hooks"][hook_group] = {}
-                        
-                        if module.__name__ not in self.block_manager_info["hooks"][hook_group].keys():
-                            self.block_manager_info["hooks"][hook_group][module.__name__] = []
-                        
-                        if fn_name not in self.block_manager_info["hooks"][hook_group][module.__name__]:
-                            self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
-                            HAS_NEW = True
+        for hook in block_hooks:
+            if callable(hook):
+                fn_name = hook.__name__
+                module = inspect.getmodule(hook)
+                if module:
+                    if hook_group not in self.block_manager_info["hooks"].keys():
+                        self.block_manager_info["hooks"][hook_group] = {}
+                    
+                    if module.__name__ not in self.block_manager_info["hooks"][hook_group].keys():
+                        self.block_manager_info["hooks"][hook_group][module.__name__] = []
+                    
+                    if fn_name not in self.block_manager_info["hooks"][hook_group][module.__name__]:
+                        self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
+                        HAS_NEW = True
         return HAS_NEW
     
     def _load_block_config(self, 
@@ -250,10 +249,13 @@ class BlockManager(BaseModel):
             
         block_settings = settings_class(**block_config, block_path=block_path)
         
-        block_hooks = block_settings._get_hooks()
+        block_hooks_start = block_settings._start_hooks()
+        block_hooks_preload = block_settings._preload_hooks()
+        block_hooks_postload = block_settings._postload_hooks()
         
-        for hook_group in ["_start_hooks", "_block_preload_hooks", "_block_postload_hooks"]:
-            requires_restart = self._attach_hook(hook_group, block_hooks) or requires_restart
+        requires_restart = self._attach_hook("_start_hooks", block_hooks_start)
+        requires_restart = self._attach_hook("_block_preload_hooks", block_hooks_preload)
+        requires_restart = self._attach_hook("_block_postload_hooks", block_hooks_postload)
     
         block_info_dict = block_settings.get_dict()
         
