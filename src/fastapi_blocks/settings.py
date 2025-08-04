@@ -98,6 +98,11 @@ class BlockSettingsBase(BaseSettings):
 class BlockSettingsMixin(BaseSettings):
     """
     A mixin for block settings.
+    
+    This is to give other blocks some config setting that can be used. .ie for a DB block, you can
+    specify a 'schemas', this will then give the other blocks the ability to specify some schema.
+    
+    Then you can access that data with hooks to perform some action.
     """
     block_path : Optional[str] = None
     
