@@ -8,6 +8,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from jinja2 import FileSystemLoader, Environment
+from mako.template import Template
+
+from .utils import generate_random_name, path_to_module
 
 from .settings import BlockSettingsBase, BlockSettingsMixin
 
@@ -43,7 +46,9 @@ class BlockManager(BaseModel):
     templates : Optional[Jinja2Templates] = None
     
     working_dir: str = os.getcwd()
+    block_manager_folder : str = "blockmanager"
     block_manager_info: dict = {}
+    block_manager_module : Any = None
     
     allow_block_import_failure: bool = False
     restart_on_install: bool = True
@@ -79,6 +84,12 @@ class BlockManager(BaseModel):
         # block manager toml
         self._load_settings_toml()
         
+        if os.path.exists(os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")):
+            try:
+                self.block_manager_module = importlib.import_module(path_to_module(self.block_manager_folder))
+            except ImportError as e:
+                self.logger.error(f"Failed to import block manager module: {e}")
+                
         # Load Hooks
         self._start_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_start_hooks", {}))
         self._block_preload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_preload_hooks", {}))
@@ -110,6 +121,17 @@ class BlockManager(BaseModel):
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
         
+        # Import from Mako
+        if self.block_manager_module:
+            if hasattr(self.block_manager_module, 'template_router'):
+                self.templates_router.include_router(self.block_manager_module.template_router)
+                self.logger.info("Mounted template router from mako file")
+                
+            if hasattr(self.block_manager_module, 'api_router'):
+                self.templates_router.include_router(self.block_manager_module.api_router)
+                self.logger.info("Mounted api router from mako file")
+        
+        # Import from toml
         for block_name, block_info in sorted_blocks:
             
             self.logger.info("Prepping: %s", block_name)
@@ -129,14 +151,14 @@ class BlockManager(BaseModel):
                 
                 # Mount routers
                 ## Template router
-                if block_info['template_router']:
+                if block_info['template_router'] and not hasattr(self.block_manager_module, 'template_router'):
                     module = importlib.import_module(block_info['template_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.templates_router.include_router(module.router)
                         self.logger.info("Mounted router: %s", block_info['template_router'])
                 
                 ## API router
-                if block_info['api_router']:
+                if block_info['api_router'] and not hasattr(self.block_manager_module, 'api_router'):
                     module = importlib.import_module(block_info['api_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.api_router.include_router(module.router)
@@ -177,7 +199,7 @@ class BlockManager(BaseModel):
     
         return DynamicBlockSettings
     
-    def _setup(self) -> bool:
+    def _setup(self, save_mako : bool = False) -> bool:
         """
         Sets up the BlockManager.
         """
@@ -186,6 +208,11 @@ class BlockManager(BaseModel):
         
         has_changes = self._setup_blocks()
         has_changes = self._setup_hooks() or has_changes
+        
+        self._save_settings_toml()
+        
+        if save_mako:
+            self._save_mako()
         
         return has_changes
     
@@ -219,7 +246,7 @@ class BlockManager(BaseModel):
         else:
             raise Exception("No blocks folder found")
         
-        self._save_settings_toml()
+        # self._save_settings_toml()
         
         return HAS_INSTALLS
     
@@ -342,7 +369,7 @@ class BlockManager(BaseModel):
             raise Exception("No blocks folder found")
         
         
-        self._save_settings_toml()
+        # self._save_settings_toml()
         return requires_restart
     
     def _resolve_hooks(self, hooks: Dict) -> List:
@@ -417,7 +444,7 @@ class BlockManager(BaseModel):
         Loads the settings from the block_infos.toml file.
         """
         
-        toml_path = os.path.join(self.working_dir, 'block_infos.toml')
+        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
             self.block_manager_info = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
@@ -452,6 +479,46 @@ class BlockManager(BaseModel):
         """
         Saves the settings to the block_infos.toml file.
         """
-        toml_path = os.path.join(self.working_dir, 'block_infos.toml')
+        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
+            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
+        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         with open(toml_path, 'w') as f:
             toml.dump(self.block_manager_info, f)
+
+    def _save_mako(self):
+        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
+            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
+            
+        init_file_path = os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")
+        
+        used_names = []
+        
+        template_routers_dict = {}
+        template_routers = [v["template_router"] for x, v in self.block_manager_info["blocks"].items() if "template_router" in v.keys() and v["template_router"]]
+        for x in template_routers:
+            random_name = generate_random_name(exclude=used_names)
+            used_names.append(random_name)
+            template_routers_dict[random_name] = x
+            
+        api_routers_dict = {}
+        api_routers = [v["api_router"] for x, v in self.block_manager_info["blocks"].items() if "api_router" in v.keys() and v["api_router"]]
+        for x in api_routers:
+            random_name = generate_random_name(exclude=used_names)
+            used_names.append(random_name)
+            api_routers_dict[random_name] = x
+            
+        data = {
+            "template_routers" : template_routers_dict,
+            "api_routers" : api_routers_dict
+        }
+            
+        current_folder = os.path.dirname(os.path.abspath(__file__))
+        mako_path = os.path.join(current_folder, "__init__.py.mako")
+            
+        with open(mako_path) as f:
+            template = Template(f.read())
+
+        rendered = template.render(**data)
+        
+        with open(init_file_path, 'w') as f:
+            f.write(rendered)

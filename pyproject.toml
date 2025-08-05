@@ -20,7 +20,8 @@ dependencies = [
     "fastapi",
     "pydantic",
     "pydantic-settings",
-    "toml"
+    "toml",
+    "mako"
 ]
 
 [project.scripts]

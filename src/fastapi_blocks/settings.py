@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List, Dict, Union
 import os
 
+from .utils import path_to_module
+
 class BlockSettingsBase(BaseSettings):
     """
     Base settings for a block, used to configure its properties.
@@ -19,7 +21,6 @@ class BlockSettingsBase(BaseSettings):
         extra_block_settings (Optional[str]): The path to extra block settings for the block.
         load_order (int): The load order of the block.
         block_path (str): The path to the block.
-        project_path (str): The path to the project.
     """
     name : str
     version : float
@@ -35,13 +36,11 @@ class BlockSettingsBase(BaseSettings):
     
     module : Optional[str] = None
     
-    project_path : str = os.getcwd()
-    
     model_config = SettingsConfigDict(extra='allow')
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.module = self._path_to_module(self.block_path)
+        self.module = path_to_module(self.block_path)
     
     def get_dict(self) -> Dict:
         """
@@ -50,7 +49,7 @@ class BlockSettingsBase(BaseSettings):
         Returns:
             Dict: A dictionary representation of the block settings.
         """
-        return self.model_dump(exclude={'project_path'})
+        return self.model_dump()
         
     def _start_hooks(self) -> List: return []
     def _preload_hooks(self) -> List: return []
@@ -66,34 +65,7 @@ class BlockSettingsBase(BaseSettings):
     def serialize_path_to_fields(self, value: str) -> Union[str, None]:
         if not value:
             return None
-        return self._path_to_module(os.path.join(self.block_path, value))
-    
-    def _path_to_module(self, path : str, working_path : str = None) -> Optional[str]:
-        """
-        Converts a path to a module.
-
-        Args:
-            path (str): The path to convert.
-            working_path (str, optional): The working path. Defaults to None.
-
-        Returns:
-            Optional[str]: The module path.
-        """
-        if not path:
-            return None
-        working_path = working_path or self.project_path
-        
-        # Ensure the path is absolute before making it relative
-        if not os.path.isabs(path):
-            path = os.path.join(working_path, path)
-
-        rel_path = os.path.relpath(path, working_path)
-
-        if rel_path.endswith('.py'):
-            rel_path = rel_path[:-3]
-        
-        module_path = rel_path.replace(os.path.sep, '.')
-        return module_path
+        return path_to_module(os.path.join(self.block_path, value))
     
 class BlockSettingsMixin(BaseSettings):
     """

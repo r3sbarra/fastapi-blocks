@@ -18,7 +18,7 @@ def setup(folder : str = "blocks"):
     
     app = FastAPI()    
     manager = BlockManager(blocks_folder=folder)
-    if manager._setup():
+    if manager._setup(save_mako=True):
         print(f"Setup complete. Folder: {folder}")
     else:
         print(f"Setup failed. Folder: {folder}")
