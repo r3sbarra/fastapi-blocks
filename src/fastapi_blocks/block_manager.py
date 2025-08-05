@@ -47,9 +47,11 @@ class BlockManager(BaseModel):
     
     allow_block_import_failure: bool = False
     restart_on_install: bool = True
-    logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
     allow_installs : bool = False
+    auto_setup_on_init : bool = True
+    
+    logger: logging.Logger = logging.getLogger(__name__)
     
     # hooks
     _start_hooks : List = []            # Runs right after loading block infos
@@ -93,17 +95,17 @@ class BlockManager(BaseModel):
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
         # Basic setup
-        HAS_INSTALLS = self._setup()
-        HAS_INSTALLS = self._setup_hooks() or HAS_INSTALLS
+        if self.auto_setup_on_init:
+            HAS_INSTALLS =  self._setup()
         
+            if HAS_INSTALLS and self.restart_on_install:
+                self.logger.warning("New items installed, please restart the server.")
+                os._exit(0)
+            
         # Setup Templates
         if not self.templates:
             jinja_env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
             self.templates = Jinja2Templates(env=jinja_env)
-
-        if HAS_INSTALLS and self.restart_on_install:
-            self.logger.warning("New items installed, please restart the server.")
-            os._exit(0)
             
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
@@ -129,14 +131,14 @@ class BlockManager(BaseModel):
                 ## Template router
                 if block_info['template_router']:
                     module = importlib.import_module(block_info['template_router'])
-                    if hasattr(module, 'router'):
+                    if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.templates_router.include_router(module.router)
                         self.logger.info("Mounted router: %s", block_info['template_router'])
                 
                 ## API router
                 if block_info['api_router']:
                     module = importlib.import_module(block_info['api_router'])
-                    if hasattr(module, 'router'):
+                    if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.api_router.include_router(module.router)
                         self.logger.info("Mounted API router: %s", block_info['api_router'])
                         
@@ -176,6 +178,18 @@ class BlockManager(BaseModel):
         return DynamicBlockSettings
     
     def _setup(self) -> bool:
+        """
+        Sets up the BlockManager.
+        """
+        if not self.block_manager_info:
+            self._load_settings_toml()
+        
+        has_changes = self._setup_blocks()
+        has_changes = self._setup_hooks() or has_changes
+        
+        return has_changes
+    
+    def _setup_blocks(self) -> bool:
         """
         Sets up the BlockManager by discovering blocks and installing their dependencies.
 
@@ -427,6 +441,12 @@ class BlockManager(BaseModel):
                         "_block_preload_hooks" : {},
                         "_block_postload_hooks" : {}
                     }
+                    
+                if "settings" not in self.block_manager_info.keys():
+                    self.block_manager_info["settings"] = {}
+                
+                self.auto_setup_on_init = self.block_manager_info["settings"].get("auto_setup_on_init", True)
+                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False)
         
     def _save_settings_toml(self):
         """

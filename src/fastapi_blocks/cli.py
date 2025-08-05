@@ -1,6 +1,27 @@
 import argparse
 import shutil
+import os
 from pathlib import Path
+
+
+def setup(folder : str = "blocks"):
+    """
+    Run setup
+    """
+    from fastapi import FastAPI
+    from fastapi_blocks import BlockManager
+    
+    cwd = os.getcwd()
+    
+    if not os.path.exists(os.path.join(cwd, folder)):
+        os.mkdir(os.path.join(cwd, folder))
+    
+    app = FastAPI()    
+    manager = BlockManager(blocks_folder=folder)
+    if manager._setup():
+        print(f"Setup complete. Folder: {folder}")
+    else:
+        print(f"Setup failed. Folder: {folder}")
 
 
 def init_project():
@@ -28,6 +49,10 @@ def main():
 
     # Init command
     parser_init = subparsers.add_parser("init", help="Initializes a new project.")
+    
+    # Setup command
+    parser_setup = subparsers.add_parser("setup", help="Runs setup")
+    parser_setup.add_argument("folder_path", type=str, default="blocks", help="The folder path where the blocks are stored")
 
     # Example command
     parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
@@ -39,5 +64,7 @@ def main():
         init_project()
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
+    elif args.command == "setup":
+        setup(args.folder_path)
     else:
         parser.print_help()
