@@ -16,4 +16,4 @@ def test_block_manager_init(tmp_path, test_app, tmpdir):
     assert app.block_manager != None
     
     # Verify that block_infos was created
-    assert os.path.exists(os.path.join(tmp_path, 'block_infos.toml'))
+    assert os.path.exists(os.path.join(tmp_path, 'blockmanager', 'block_infos.toml'))
