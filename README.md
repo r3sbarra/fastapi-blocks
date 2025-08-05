@@ -11,3 +11,9 @@
 ```bash
 pip install fastapi-blocks
 ```
+
+## Todo:
+
+[] Better mako
+[] Put more meaningful tests
+[] Add command to setup templates/default

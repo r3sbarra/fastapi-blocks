@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{ name = "r3sbarra (Richard)", email= "richardmark.pi@gmail.com"}]
-maintainers = [{ name = "r3sbarra (Richard)", email= "richardmark.pi@gmail.com"}]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -22,6 +21,11 @@ dependencies = [
     "pydantic-settings",
     "toml",
     "mako"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
 ]
 
 [project.scripts]
