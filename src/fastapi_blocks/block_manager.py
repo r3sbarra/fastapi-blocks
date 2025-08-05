@@ -86,6 +86,7 @@ class BlockManager(BaseModel):
         
         # Basic setup
         HAS_INSTALLS = self._setup()
+        HAS_INSTALLS = self._setup_hooks() or HAS_INSTALLS
         
         # Setup Templates
         if not self.templates:
@@ -145,10 +146,7 @@ class BlockManager(BaseModel):
         
         return app_instance
     
-    
-    def _setup(self) -> bool:
-        HAS_INSTALLS = False
-        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+    def _build_block_settings_class(self,) -> BlockSettingsBase:
         # Build settings class
         extra_settings_classes = []
         if self.block_manager_info["extra_block_settings"]:
@@ -167,6 +165,13 @@ class BlockManager(BaseModel):
             def get_hooks(self) -> dict:
                 return super().get_hooks()
     
+        return DynamicBlockSettings
+    
+    def _setup(self) -> bool:
+        HAS_INSTALLS = False
+        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        dynamic_block_class = self._build_block_settings_class()
+    
         # Look for block_config.toml under some projects_root_dir
         if os.path.exists(projects_root_dir):
             for item in os.scandir(projects_root_dir):
@@ -176,23 +181,64 @@ class BlockManager(BaseModel):
                     # Look for folders with block_config.toml
                     if item.is_dir() and os.path.exists(block_config_path):
                         
-                        new_installs = self._load_block_config(item.path, block_config_path, settings_class=DynamicBlockSettings)
+                        new_installs = self._load_block_config(item.path, block_config_path, settings_class=dynamic_block_class)
                         HAS_INSTALLS = HAS_INSTALLS or new_installs
                         
-                        self._save_settings_toml()
-                            
                 except Exception as e:
                     if not self.allow_block_import_failure:
                         error_msg = f"Failed to import block config at path: {item.path}: {e}"
                         raise Exception(error_msg)
         else:
             raise Exception("No blocks folder found")
+        
+        self._save_settings_toml()
+        
         return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
         if block_name in self.block_manager_info["blocks"]:
             return importlib.import_module(self.block_manager_info["blocks"][block_name]['module'])
         return None
+    
+    def _setup_hooks(self) -> bool:
+        requires_restart = False
+        
+        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        dynamic_block_class = self._build_block_settings_class()
+        
+        # Look for block_config.toml under some projects_root_dir
+        if os.path.exists(projects_root_dir):
+            for item in os.scandir(projects_root_dir):
+                try:
+                    block_config_path = os.path.join(item.path, "block_config.toml")
+                    
+                    # Look for folders with block_config.toml
+                    if item.is_dir() and os.path.exists(block_config_path):
+                        # Load Settings
+                        with open(block_config_path, 'r') as f:
+                            block_config = toml.load(f)
+                            
+                        block_settings = dynamic_block_class(**block_config, block_path=item.path)
+                        
+                        # Hooks
+                        block_hooks_start = block_settings._start_hooks()
+                        block_hooks_preload = block_settings._preload_hooks()
+                        block_hooks_postload = block_settings._postload_hooks()
+                        
+                        requires_restart = self._attach_hook("_start_hooks", block_hooks_start) or requires_restart
+                        requires_restart = self._attach_hook("_block_preload_hooks", block_hooks_preload) or requires_restart
+                        requires_restart = self._attach_hook("_block_postload_hooks", block_hooks_postload) or requires_restart
+                        
+                except Exception as e:
+                    if not self.allow_block_import_failure:
+                        error_msg = f"Failed to import block config at path: {item.path}: {e}"
+                        raise Exception(error_msg)
+        else:
+            raise Exception("No blocks folder found")
+        
+        
+        self._save_settings_toml()
+        return requires_restart
     
     def _resolve_hooks(self, hooks: Dict) -> List:
         resolved_hooks = []
@@ -248,16 +294,8 @@ class BlockManager(BaseModel):
             block_config = toml.load(f)
             
         block_settings = settings_class(**block_config, block_path=block_path)
-        
-        # Hooks
-        block_hooks_start = block_settings._start_hooks()
-        block_hooks_preload = block_settings._preload_hooks()
-        block_hooks_postload = block_settings._postload_hooks()
-        
-        requires_restart = self._attach_hook("_start_hooks", block_hooks_start)
-        requires_restart = self._attach_hook("_block_preload_hooks", block_hooks_preload)
-        requires_restart = self._attach_hook("_block_postload_hooks", block_hooks_postload)
     
+        # Block Info
         block_info_dict = block_settings.get_dict()
         
         if block_settings.name not in self.block_manager_info["blocks"]:
