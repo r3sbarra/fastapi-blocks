@@ -20,7 +20,8 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "toml",
-    "mako"
+    "mako",
+    "jinja2"
 ]
 
 [project.optional-dependencies]
