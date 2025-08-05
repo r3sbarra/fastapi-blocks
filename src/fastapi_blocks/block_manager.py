@@ -202,6 +202,63 @@ class BlockManager(BaseModel):
             return importlib.import_module(self.block_manager_info["blocks"][block_name]['module'])
         return None
     
+        
+    def _load_block_config(self, 
+            block_path: str, 
+            config_path : str,
+            settings_class : BlockSettingsBase
+        ) -> bool:
+        
+        requires_restart = False
+        
+        # Load Settings
+        with open(config_path, 'r') as f:
+            block_config = toml.load(f)
+            
+        block_settings = settings_class(**block_config, block_path=block_path)
+    
+        # Block Info
+        block_info_dict = block_settings.get_dict()
+        
+        # Dependancy check
+        if block_settings.dependancies:
+            for dependancy in block_settings.dependancies:
+                if dependancy not in self.block_manager_info["blocks"].keys():
+                    raise Exception(f"Missing dependancy: {dependancy}. Make sure that block is installed, or that load order is correct.")
+        
+        if block_settings.name not in self.block_manager_info["blocks"]:
+            self.block_manager_info["blocks"][block_settings.name] = block_info_dict
+        else:
+            # If key not in block_manager_info, add it. Else, do nothing.
+            for key, items in block_info_dict.items():
+                if key not in self.block_manager_info["blocks"][block_settings.name].keys():
+                    self.block_manager_info["blocks"][block_settings.name][key] = items
+            
+        # Check if extra block settings in settings, else require restart
+        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
+            self.block_manager_info["extra_block_settings"].append(block_info_dict['extra_block_settings'])
+            requires_restart = True
+        
+        # Check if has requirements, or requirements has changed
+        if block_settings.requirements or \
+            self.block_manager_info["blocks"][block_settings.name]['requirements'] != block_settings.requirements:
+                
+            # Go through requirements and install if not installed
+            for requirement in block_settings.requirements:
+                if requirement not in self.block_manager_info["installs"]:
+                    self.block_manager_info["installs"].append(requirement)
+                    requires_restart = True
+                    if not self.skip_installs:
+                        try:
+                            subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
+                        except subprocess.CalledProcessError as e:
+                            self.logger.error(f"Failed to install requirement: {requirement}")
+                            raise e
+                
+        return requires_restart
+    
+    # Hooks
+    
     def _setup_hooks(self) -> bool:
         requires_restart = False
         
@@ -282,54 +339,8 @@ class BlockManager(BaseModel):
                         self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
                         HAS_NEW = True
         return HAS_NEW
-    
-    def _load_block_config(self, 
-            block_path: str, 
-            config_path : str,
-            settings_class : BlockSettingsBase
-        ) -> bool:
-        
-        requires_restart = False
-        
-        # Load Settings
-        with open(config_path, 'r') as f:
-            block_config = toml.load(f)
-            
-        block_settings = settings_class(**block_config, block_path=block_path)
-    
-        # Block Info
-        block_info_dict = block_settings.get_dict()
-        
-        if block_settings.name not in self.block_manager_info["blocks"]:
-            self.block_manager_info["blocks"][block_settings.name] = block_info_dict
-        else:
-            for key, items in block_info_dict.items():
-                if key not in self.block_manager_info["blocks"][block_settings.name].keys():
-                    self.block_manager_info["blocks"][block_settings.name][key] = items
-            
-        # Check if extra block settings in settings, else require restart
-        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
-            self.block_manager_info["extra_block_settings"].append(block_info_dict['extra_block_settings'])
-            requires_restart = True
-        
-        # Check if has requirements, or requirements has changed
-        if block_settings.requirements or \
-            self.block_manager_info["blocks"][block_settings.name]['requirements'] != block_settings.requirements:
-                
-            # Go through requirements and install if not installed
-            for requirement in block_settings.requirements:
-                if requirement not in self.block_manager_info["installs"]:
-                    self.block_manager_info["installs"].append(requirement)
-                    requires_restart = True
-                    if not self.skip_installs:
-                        try:
-                            subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
-                        except subprocess.CalledProcessError as e:
-                            self.logger.error(f"Failed to install requirement: {requirement}")
-                            raise e
-                
-        return requires_restart
 
+    # Settings 
     def _load_settings_toml(self):
         
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
