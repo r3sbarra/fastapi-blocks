@@ -4,7 +4,6 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-
 @pytest.fixture(scope="module")
 def test_app():
     client = TestClient(app)
