@@ -10,7 +10,7 @@ def test_tmp_file(tmp_path):
     
 def test_block_manager_init(tmp_path, test_app, tmpdir):
     tmpdir.mkdir("blocks")
-    block_manager = BlockManager(blocks_folder="blocks", working_dir=str(tmp_path), skip_installs=True)
+    block_manager = BlockManager(blocks_folder="blocks", working_dir=str(tmp_path))
     app = block_manager.init_app(test_app.app)
     assert app != None
     assert app.block_manager != None

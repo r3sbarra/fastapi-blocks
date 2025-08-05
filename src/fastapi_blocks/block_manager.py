@@ -18,7 +18,8 @@ import toml
 import subprocess
 import sys
 import inspect
-    
+
+# The BlockManager class is responsible for managing the blocks in the FastAPI application.
 class BlockManager(BaseModel):
     """
     Manages FastAPI blocks, including their discovery, dependency installation, and integration.
@@ -48,7 +49,7 @@ class BlockManager(BaseModel):
     restart_on_install: bool = True
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
-    skip_installs : bool = False
+    allow_installs : bool = False
     
     # hooks
     _start_hooks : List = []            # Runs right after loading block infos
@@ -67,6 +68,11 @@ class BlockManager(BaseModel):
         Returns:
             FastAPI: The FastAPI application instance with the blocks integrated.
         """
+        if self.allow_installs:
+            self.logger.warning(
+                "SECURITY WARNING: Automatic dependency installation is enabled. "
+                "Only use blocks from trusted sources to prevent the execution of malicious code."
+            )
         
         # block manager toml
         self._load_settings_toml()
@@ -170,6 +176,12 @@ class BlockManager(BaseModel):
         return DynamicBlockSettings
     
     def _setup(self) -> bool:
+        """
+        Sets up the BlockManager by discovering blocks and installing their dependencies.
+
+        Returns:
+            bool: True if new dependencies were installed, False otherwise.
+        """
         HAS_INSTALLS = False
         projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
         dynamic_block_class = self._build_block_settings_class()
@@ -198,6 +210,15 @@ class BlockManager(BaseModel):
         return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
+        """
+        Gets the module for a given block.
+
+        Args:
+            block_name (str): The name of the block.
+
+        Returns:
+            ModuleType: The module for the given block.
+        """
         if block_name in self.block_manager_info["blocks"]:
             return importlib.import_module(self.block_manager_info["blocks"][block_name]['module'])
         return None
@@ -248,18 +269,29 @@ class BlockManager(BaseModel):
                 if requirement not in self.block_manager_info["installs"]:
                     self.block_manager_info["installs"].append(requirement)
                     requires_restart = True
-                    if not self.skip_installs:
+                    if self.allow_installs:
                         try:
                             subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
                         except subprocess.CalledProcessError as e:
                             self.logger.error(f"Failed to install requirement: {requirement}")
                             raise e
+                    else:
+                        self.logger.warning(
+                            f"Block '{block_settings.name}' requires '{requirement}'. "
+                            f"Automatic installation is disabled. Please install it manually."
+                        )
                 
         return requires_restart
     
     # Hooks
     
     def _setup_hooks(self) -> bool:
+        """
+        Discovers and sets up hooks for the blocks.
+
+        Returns:
+            bool: True if new hooks were discovered, False otherwise.
+        """
         requires_restart = False
         
         projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
@@ -300,6 +332,15 @@ class BlockManager(BaseModel):
         return requires_restart
     
     def _resolve_hooks(self, hooks: Dict) -> List:
+        """
+        Resolves the hooks for the blocks.
+
+        Args:
+            hooks (Dict): A dictionary of hooks to resolve.
+
+        Returns:
+            List: A list of resolved hooks.
+        """
         resolved_hooks = []
         for module_path in hooks.keys():
             if not hooks[module_path]:
@@ -317,12 +358,28 @@ class BlockManager(BaseModel):
         return resolved_hooks
         
     def _run_hooks(self, hooks : List, **kwargs) -> None:
+        """
+        Runs the given hooks.
+
+        Args:
+            hooks (List): A list of hooks to run.
+        """
         if hooks:
             for fn in hooks:
                 if callable(fn):
                     fn(**kwargs)
         
     def _attach_hook(self, hook_group : str, block_hooks : List) -> bool:
+        """
+        Attaches a hook to the BlockManager.
+
+        Args:
+            hook_group (str): The group to attach the hook to.
+            block_hooks (List): A list of hooks to attach.
+
+        Returns:
+            bool: True if a new hook was attached, False otherwise.
+        """
         HAS_NEW = False
         for hook in block_hooks:
             if callable(hook):
@@ -342,6 +399,9 @@ class BlockManager(BaseModel):
 
     # Settings 
     def _load_settings_toml(self):
+        """
+        Loads the settings from the block_infos.toml file.
+        """
         
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         
@@ -369,6 +429,9 @@ class BlockManager(BaseModel):
                     }
         
     def _save_settings_toml(self):
+        """
+        Saves the settings to the block_infos.toml file.
+        """
         toml_path = os.path.join(self.working_dir, 'block_infos.toml')
         with open(toml_path, 'w') as f:
             toml.dump(self.block_manager_info, f)
