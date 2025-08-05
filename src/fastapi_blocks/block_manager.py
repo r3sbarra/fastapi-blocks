@@ -39,14 +39,16 @@ class BlockManager(BaseModel):
     templates_router: APIRouter = APIRouter()
     api_router: APIRouter = APIRouter(prefix='/api')
     
-    allow_block_import_failure: bool = False
-    restart_on_install: bool = True
+    templates : Optional[Jinja2Templates] = None
+    
     working_dir: str = os.getcwd()
     block_manager_info: dict = {}
+    
+    allow_block_import_failure: bool = False
+    restart_on_install: bool = True
     logger: logging.Logger = logging.getLogger(__name__)
     override_duplicate_block : bool = False
-    
-    templates : Optional[Jinja2Templates] = None
+    skip_installs : bool = False
     
     # hooks
     _start_hooks : List = []            # Runs right after loading block infos
@@ -82,7 +84,7 @@ class BlockManager(BaseModel):
         app_instance.block_manager = self
         
         # Use app logger if exists
-        self.logger = app_instance.logger or self.logger
+        self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
         # Basic setup
         HAS_INSTALLS = self._setup()
@@ -319,11 +321,12 @@ class BlockManager(BaseModel):
                 if requirement not in self.block_manager_info["installs"]:
                     self.block_manager_info["installs"].append(requirement)
                     requires_restart = True
-                    try:
-                        subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
-                    except subprocess.CalledProcessError as e:
-                        self.logger.error(f"Failed to install requirement: {requirement}")
-                        raise e
+                    if not self.skip_installs:
+                        try:
+                            subprocess.check_call([sys.executable, "-m", "pip", "install", requirement])
+                        except subprocess.CalledProcessError as e:
+                            self.logger.error(f"Failed to install requirement: {requirement}")
+                            raise e
                 
         return requires_restart
 
