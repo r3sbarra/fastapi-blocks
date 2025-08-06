@@ -14,6 +14,9 @@
 pip install fastapi-blocks
 ```
 
+## Example
+- [Example Project](https://github.com/r3sbarra/fablocks-example-project) - An example project
+
 ## Todo:
 
 - [ ] Better mako
