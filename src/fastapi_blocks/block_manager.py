@@ -29,6 +29,7 @@ class BlockManager(BaseModel):
 
     Attributes:
         blocks_folder (str): The directory where blocks are located.
+        db_engine (Engine): The database engine to use.
         templates_router (APIRouter): The router for block templates.
         api_router (APIRouter): The router for block APIs.
         allow_block_import_failure (bool): Whether to allow the application to continue running if a block fails to import.
@@ -44,6 +45,8 @@ class BlockManager(BaseModel):
     api_router: APIRouter = APIRouter(prefix='/api')
     
     templates : Optional[Jinja2Templates] = None
+    
+    db_engine : Optional[Any] = None 
     
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
