@@ -23,6 +23,30 @@ def setup(folder : str = "blocks"):
     else:
         print(f"Setup failed. Folder: {folder}")
 
+def make_block(block_name):
+    """
+    Creates a new block.
+    """
+    from fastapi_blocks import BlockManager
+    block_manager = BlockManager()
+    block_manager._load_settings_toml()
+    
+    if not block_manager.block_manager_info:
+        print(f"Error: 'block_manager_info' is empty. Start the app at least once")
+        return
+    
+    # copy placeholder
+    source = Path(__file__).parent / "default_blocks" / "block_template"
+    dest = Path.cwd() / "blocks" / block_name
+    
+    if dest.exists():
+        print(f"Error: '{block_name}' already exists.")
+        return
+    
+    print(f"Copying 'block_template' to '{dest}'...")
+    shutil.copytree(source, dest)
+    print("Initialization complete.")
+
 
 def init_project():
     """
@@ -53,6 +77,11 @@ def main():
     # Setup command
     parser_setup = subparsers.add_parser("setup", help="Runs setup")
     parser_setup.add_argument("folder_path", type=str, default="blocks", help="The folder path where the blocks are stored")
+
+    # Create command
+    parser_create = subparsers.add_parser("create", help="Creates a new block.")
+    parser_create.add_argument("block_name", type=str, help="The name of the block to create.")
+    parser_create.set_defaults(func=make_block)
 
     # Example command
     parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
