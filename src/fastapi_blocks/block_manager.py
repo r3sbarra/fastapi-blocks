@@ -211,7 +211,24 @@ class BlockManager(metaclass=SingletonMeta):
         Sets up the BlockManager.
         """
         if not self.block_manager_info:
-            self._load_settings_toml()
+            if "blocks" not in self.block_manager_info.keys():
+                self.block_manager_info["blocks"] = {}
+            if "installs" not in self.block_manager_info.keys():
+                self.block_manager_info["installs"] = []
+            if "extra_block_settings" not in self.block_manager_info.keys():
+                self.block_manager_info["extra_block_settings"] = []
+            if "templates_dir" not in self.block_manager_info.keys():
+                self.block_manager_info["templates_dir"] = []
+                
+            if "hooks" not in self.block_manager_info.keys():
+                self.block_manager_info["hooks"] = {
+                    "_start_hooks" : {},
+                    "_block_preload_hooks" : {},
+                    "_block_postload_hooks" : {}
+                }
+                
+            if "settings" not in self.block_manager_info.keys():
+                self.block_manager_info["settings"] = {}
         
         has_changes = self._setup_blocks()
         has_changes = self._setup_hooks() or has_changes
@@ -459,25 +476,6 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             with open(toml_path, 'r') as f:
                 self.block_manager_info = toml.load(f)
-                
-                if "blocks" not in self.block_manager_info.keys():
-                    self.block_manager_info["blocks"] = {}
-                if "installs" not in self.block_manager_info.keys():
-                    self.block_manager_info["installs"] = []
-                if "extra_block_settings" not in self.block_manager_info.keys():
-                    self.block_manager_info["extra_block_settings"] = []
-                if "templates_dir" not in self.block_manager_info.keys():
-                    self.block_manager_info["templates_dir"] = []
-                    
-                if "hooks" not in self.block_manager_info.keys():
-                    self.block_manager_info["hooks"] = {
-                        "_start_hooks" : {},
-                        "_block_preload_hooks" : {},
-                        "_block_postload_hooks" : {}
-                    }
-                    
-                if "settings" not in self.block_manager_info.keys():
-                    self.block_manager_info["settings"] = {}
                 
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False)
         

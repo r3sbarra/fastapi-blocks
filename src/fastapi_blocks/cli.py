@@ -16,12 +16,25 @@ def setup(folder : str = "blocks"):
     if not os.path.exists(os.path.join(cwd, folder)):
         os.mkdir(os.path.join(cwd, folder))
     
-    app = FastAPI()    
+    app = FastAPI()
     manager = BlockManager(blocks_folder=folder)
+    
     if manager._setup(save_mako=True):
         print(f"Setup complete. Folder: {folder}")
     else:
         print(f"Setup failed. Folder: {folder}")
+        
+    # Add block_infos.toml to .gitignore
+    if not os.path.exists(os.path.join(cwd, ".gitignore")):
+        with open(os.path.join(cwd, ".gitignore"), "w") as f:
+            f.write("block_infos.toml\n")
+    else:
+        with open(os.path.join(cwd, ".gitignore"), "r") as f:
+            lines = f.readlines()
+        if "block_infos.toml\n" not in lines:
+            with open(os.path.join(cwd, ".gitignore"), "a") as f:
+                f.write("block_infos.toml\n")
+
 
 def make_block(block_name):
     """
