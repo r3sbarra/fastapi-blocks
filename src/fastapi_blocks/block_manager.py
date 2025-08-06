@@ -128,16 +128,6 @@ class BlockManager(metaclass=SingletonMeta):
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
         
-        # Import from Mako
-        if self.block_manager_module:
-            if hasattr(self.block_manager_module, 'template_router'):
-                self.templates_router.include_router(self.block_manager_module.template_router)
-                self.logger.info("Mounted template router from mako file")
-                
-            if hasattr(self.block_manager_module, 'api_router'):
-                self.templates_router.include_router(self.block_manager_module.api_router)
-                self.logger.info("Mounted api router from mako file")
-        
         # Import from toml
         for block_name, block_info in sorted_blocks:
             
@@ -148,7 +138,7 @@ class BlockManager(metaclass=SingletonMeta):
                 self._run_hooks(self._block_preload_hooks, block_info=block_info)
                         
                 # Mount statics
-                if block_info['statics'] and os.path.exists(block_info['statics']):
+                if block_info.get('statics', None) and os.path.exists(block_info['statics']):
                     app_instance.mount(
                         f"/{block_name}/static", 
                         StaticFiles(directory=block_info['statics']), 
@@ -158,14 +148,14 @@ class BlockManager(metaclass=SingletonMeta):
                 
                 # Mount routers
                 ## Template router
-                if block_info['template_router'] and not hasattr(self.block_manager_module, 'template_router'):
+                if block_info.get('template_router', None) and not hasattr(self.block_manager_module, 'template_router'):
                     module = importlib.import_module(block_info['template_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.templates_router.include_router(module.router)
                         self.logger.info("Mounted router: %s", block_info['template_router'])
                 
                 ## API router
-                if block_info['api_router'] and not hasattr(self.block_manager_module, 'api_router'):
+                if block_info.get('api_router', None) and not hasattr(self.block_manager_module, 'api_router'):
                     module = importlib.import_module(block_info['api_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.api_router.include_router(module.router)
@@ -178,8 +168,17 @@ class BlockManager(metaclass=SingletonMeta):
                 self.logger.exception("Failed to import block %s: %s", block_name, e)
                 if not self.allow_block_import_failure:
                     raise Exception(f"Failed to import block {block_name}: {e}")
+
+        # Import from Mako
+        if self.block_manager_module:
+            if hasattr(self.block_manager_module, 'template_router') and type(self.block_manager_module.template_router) == APIRouter:
+                self.templates_router.include_router(self.block_manager_module.template_router)
+                self.logger.info("Mounted template router from mako file")
                 
-                
+            if hasattr(self.block_manager_module, 'api_router') and type(self.block_manager_module.api_router) == APIRouter:
+                self.api_router.include_router(self.block_manager_module.api_router)
+                self.logger.info("Mounted api router from mako file")                
+            
         app_instance.include_router(self.templates_router)
         app_instance.include_router(self.api_router)
         
@@ -219,6 +218,8 @@ class BlockManager(metaclass=SingletonMeta):
                 self.block_manager_info["extra_block_settings"] = []
             if "templates_dir" not in self.block_manager_info.keys():
                 self.block_manager_info["templates_dir"] = []
+            if "statics" not in self.block_manager_info.keys():
+                self.block_manager_info["statics"] = []
                 
             if "hooks" not in self.block_manager_info.keys():
                 self.block_manager_info["hooks"] = {
