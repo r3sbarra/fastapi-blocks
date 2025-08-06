@@ -75,8 +75,11 @@ class BlockManager(metaclass=SingletonMeta):
     _block_preload_hooks : List = []    # Runs before each block info is loaded
     _block_postload_hooks : List = []   # Runs after each block info is loaded
     
-    def __init__(self, blocks_folder : str, *args, **kwargs):
-        self.blocks_folder = blocks_folder
+    def __init__(self, *args, **kwargs):
+        
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            
         self.logger.info("BlockManager initialized.")
         
     def init_app(self, app_instance: 'FastAPI'):
