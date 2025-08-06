@@ -23,7 +23,7 @@ class BlockSettingsBase(BaseSettings):
         block_path (str): The path to the block.
     """
     name : str
-    version : float
+    version : str
     block_path : str
     requirements : List[str] = []
     dependancies : List[str] = []

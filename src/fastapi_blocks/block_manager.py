@@ -347,7 +347,6 @@ class BlockManager(metaclass=SingletonMeta):
         return requires_restart
     
     # Hooks
-    
     def _setup_hooks(self) -> bool:
         """
         Discovers and sets up hooks for the blocks.
@@ -546,5 +545,11 @@ class BlockManager(metaclass=SingletonMeta):
             f.write(rendered)
 
     def get_schemas(self) -> List[str]:
+        """
+        Gets the schemas for the blocks in str format. They will need to be imported afterwards with importlib
+
+        Returns:
+            List[str]: A list of schemas for the blocks.
+        """
         schemas = [ x["schemas"] for x in self.block_manager_info["blocks"].values() if "schemas" in x.keys() and x["schemas"] ]
         return schemas

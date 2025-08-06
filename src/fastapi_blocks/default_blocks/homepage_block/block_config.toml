@@ -1,6 +1,6 @@
 name = "Example Block"
 statics = "statics"
-version = 0.1
+version = "0.1"
 template_router = "router" # Default: router.py
 api_router = "api_router" # Default: api_router.py
 requirements = ["requests"]
