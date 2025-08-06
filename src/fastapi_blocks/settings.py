@@ -33,6 +33,7 @@ class BlockSettingsBase(BaseSettings):
     api_router : Optional[str] = None
     extra_block_settings : Optional[str] = None
     load_order : int = 9
+    schemas : Optional[List[str]] = None
     
     module : Optional[str] = None
     

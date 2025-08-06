@@ -263,8 +263,6 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             raise Exception("No blocks folder found")
         
-        # self._save_settings_toml()
-        
         return HAS_INSTALLS
     
     def get_block_module(self, block_name: str) -> ModuleType:
@@ -544,3 +542,7 @@ class BlockManager(metaclass=SingletonMeta):
         
         with open(init_file_path, 'w') as f:
             f.write(rendered)
+
+    def get_schemas(self) -> List[str]:
+        schemas = [ x["schemas"] for x in self.block_manager_info["blocks"].values() if "schemas" in x.keys() and x["schemas"] ]
+        return schemas
