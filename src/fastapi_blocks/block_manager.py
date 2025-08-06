@@ -57,6 +57,8 @@ class BlockManager(metaclass=SingletonMeta):
     
     db_engine : Optional[Any] = None 
     
+    db_engine : Optional[Any] = None 
+    
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
     block_manager_info: dict = {}
