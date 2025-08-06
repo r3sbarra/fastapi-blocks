@@ -22,8 +22,17 @@ import subprocess
 import sys
 import inspect
 
+class SingletonMeta(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 # The BlockManager class is responsible for managing the blocks in the FastAPI application.
-class BlockManager(BaseModel):
+class BlockManager(metaclass=SingletonMeta):
+    
     """
     Manages FastAPI blocks, including their discovery, dependency installation, and integration.
 
@@ -44,7 +53,9 @@ class BlockManager(BaseModel):
     templates_router: APIRouter = APIRouter()
     api_router: APIRouter = APIRouter(prefix='/api')
     
-    templates : Optional[Jinja2Templates] = None
+    templates : Optional[Environment] = None
+    
+    db_engine : Optional[Any] = None 
     
     db_engine : Optional[Any] = None 
     
@@ -66,7 +77,12 @@ class BlockManager(BaseModel):
     _block_preload_hooks : List = []    # Runs before each block info is loaded
     _block_postload_hooks : List = []   # Runs after each block info is loaded
     
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def __init__(self, *args, **kwargs):
+        
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            
+        self.logger.info("BlockManager initialized.")
         
     def init_app(self, app_instance: 'FastAPI'):
         """
@@ -118,8 +134,8 @@ class BlockManager(BaseModel):
             
         # Setup Templates
         if not self.templates:
-            jinja_env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
-            self.templates = Jinja2Templates(env=jinja_env)
+            jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
+            self.templates = Jinja2Templates(env=jinja2env)
             
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
@@ -324,6 +340,11 @@ class BlockManager(BaseModel):
                             f"Block '{block_settings.name}' requires '{requirement}'. "
                             f"Automatic installation is disabled. Please install it manually."
                         )
+                        
+        # Templates dir
+        if block_info_dict['templates_dir'] and block_info_dict['templates_dir'] not in self.block_manager_info["templates_dir"]:
+            self.block_manager_info["templates_dir"].append(block_info_dict['templates_dir'])
+            requires_restart = True
                 
         return requires_restart
     
@@ -440,7 +461,7 @@ class BlockManager(BaseModel):
                         self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
                         HAS_NEW = True
         return HAS_NEW
-
+    
     # Settings 
     def _load_settings_toml(self):
         """
