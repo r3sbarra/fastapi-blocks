@@ -2,9 +2,9 @@ name: Test Package
 
 on:
   push:
-    branches: [main]
+    branches: [nightly]
   pull_request:
-    branches: [main]
+    branches: [main, nightly]
 
 permissions:
   contents: read
