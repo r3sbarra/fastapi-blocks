@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-def setup(folder : str = "blocks"):
+def setup(folder : str = "blocks", auto_install : bool = False):
     """
     Run setup
     """
@@ -17,7 +17,7 @@ def setup(folder : str = "blocks"):
         os.mkdir(os.path.join(cwd, folder))
     
     app = FastAPI()
-    manager = BlockManager(blocks_folder=folder)
+    manager = BlockManager(blocks_folder=folder, auto_install=auto_install)
     
     if manager._setup(save_mako=True):
         print(f"Setup complete. Folder: {folder}")
@@ -90,11 +90,11 @@ def main():
     # Setup command
     parser_setup = subparsers.add_parser("setup", help="Runs setup")
     parser_setup.add_argument("folder_path", type=str, default="blocks", help="The folder path where the blocks are stored")
+    parser_setup.add_argument("--auto-install", "-A", action="store_true", help="Automatically install missing dependencies", default=False)
 
     # Create command
     parser_create = subparsers.add_parser("create", help="Creates a new block.")
     parser_create.add_argument("block_name", type=str, help="The name of the block to create.")
-    parser_create.set_defaults(func=make_block)
 
     # Example command
     parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
@@ -107,6 +107,6 @@ def main():
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
-        setup(args.folder_path)
+        setup(args.folder_path, args.auto_install)
     else:
         parser.print_help()
