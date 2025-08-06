@@ -65,7 +65,6 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
-    auto_setup_on_init : bool = True
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -121,14 +120,6 @@ class BlockManager(metaclass=SingletonMeta):
         # Use app logger if exists
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
-        # Basic setup
-        if self.auto_setup_on_init:
-            HAS_INSTALLS =  self._setup()
-        
-            if HAS_INSTALLS and self.restart_on_install:
-                self.logger.warning("New items installed, please restart the server.")
-                os._exit(0)
-            
         # Setup Templates
         if not self.templates:
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
@@ -386,8 +377,6 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             raise Exception("No blocks folder found")
         
-        
-        # self._save_settings_toml()
         return requires_restart
     
     def _resolve_hooks(self, hooks: Dict) -> List:
@@ -465,8 +454,8 @@ class BlockManager(metaclass=SingletonMeta):
         toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.block_manager_info = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
-            self._save_settings_toml()
+            self.logger.warning("No block_infos.toml found. Please run setup first")
+            raise Exception("No block_infos.toml found. Please run setup first")
         else:
             with open(toml_path, 'r') as f:
                 self.block_manager_info = toml.load(f)
@@ -490,7 +479,6 @@ class BlockManager(metaclass=SingletonMeta):
                 if "settings" not in self.block_manager_info.keys():
                     self.block_manager_info["settings"] = {}
                 
-                self.auto_setup_on_init = self.block_manager_info["settings"].get("auto_setup_on_init", True)
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False)
         
     def _save_settings_toml(self):
