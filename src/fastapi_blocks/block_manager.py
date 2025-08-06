@@ -54,8 +54,7 @@ class BlockManager(metaclass=SingletonMeta):
     api_router: APIRouter = APIRouter(prefix='/api')
     
     templates : Optional[Environment] = None
-    
-    db_engine : Optional[Any] = None 
+    _db_engine : Optional[Any] = None
     
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
@@ -551,3 +550,14 @@ class BlockManager(metaclass=SingletonMeta):
         """
         schemas = [ x["schemas"] for x in self.block_manager_info["blocks"].values() if "schemas" in x.keys() and x["schemas"] ]
         return schemas
+    
+    def get_db_engine(self) -> Any:
+        """
+        Gets the database engine for the blocks.
+
+        Returns:
+            Any: The database engine for the blocks.
+        """
+        if not self._db_engine:
+            raise Exception("No database engine found")
+        return self._db_engine
