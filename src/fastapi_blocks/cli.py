@@ -17,12 +17,8 @@ def setup(folder : str = "blocks", auto_install : bool = False):
         os.mkdir(os.path.join(cwd, folder))
     
     app = FastAPI()
-    manager = BlockManager(blocks_folder=folder, auto_install=auto_install)
-    
-    if manager._setup(save_mako=True):
-        print(f"Setup complete. Folder: {folder}")
-    else:
-        print(f"Setup failed. Folder: {folder}")
+    manager = BlockManager(blocks_folder=folder, allow_installs=auto_install)
+    manager._setup(save_mako=True)
         
     # Add block_infos.toml to .gitignore
     if not os.path.exists(os.path.join(cwd, ".gitignore")):
@@ -34,6 +30,8 @@ def setup(folder : str = "blocks", auto_install : bool = False):
         if "block_infos.toml\n" not in lines:
             with open(os.path.join(cwd, ".gitignore"), "a") as f:
                 f.write("block_infos.toml\n")
+                
+    print("setup complete")
 
 
 def make_block(block_name):
@@ -110,3 +108,6 @@ def main():
         setup(args.folder_path, args.auto_install)
     else:
         parser.print_help()
+        
+if __name__ == "__main__":
+    main()
