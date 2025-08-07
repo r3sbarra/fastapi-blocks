@@ -68,6 +68,12 @@ class BlockSettingsBase(BaseSettings):
             return None
         return path_to_module(os.path.join(self.block_path, value))
     
+    @field_serializer('schemas')
+    def serialize_schemas(self, value: List[str]) -> Union[List[str], None]:
+        if not value:
+            return None
+        return [path_to_module(os.path.join(self.block_path, v)) for v in value]
+    
 class BlockSettingsMixin(BaseSettings):
     """
     A mixin for block settings.
