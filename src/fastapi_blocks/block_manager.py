@@ -65,6 +65,7 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
+    late_setup : bool = False
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -78,9 +79,9 @@ class BlockManager(metaclass=SingletonMeta):
         for key, value in kwargs.items():
             setattr(self, key, value)
             
-        
         # block manager toml
-        self._load_settings_toml()
+        if not self.late_setup:
+            self._load_settings_toml()
         
         self.logger.info("BlockManager initialized.")
         
