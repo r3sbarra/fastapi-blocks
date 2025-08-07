@@ -85,7 +85,6 @@ class BlockManager(metaclass=SingletonMeta):
         
         self.logger.info("BlockManager initialized.")
         
-        
     def init_app(self, app_instance: 'FastAPI'):
         """
         Initializes the BlockManager and integrates the blocks with the FastAPI application.
