@@ -78,7 +78,12 @@ class BlockManager(metaclass=SingletonMeta):
         for key, value in kwargs.items():
             setattr(self, key, value)
             
+        
+        # block manager toml
+        self._load_settings_toml()
+        
         self.logger.info("BlockManager initialized.")
+        
         
     def init_app(self, app_instance: 'FastAPI'):
         """
@@ -90,14 +95,6 @@ class BlockManager(metaclass=SingletonMeta):
         Returns:
             FastAPI: The FastAPI application instance with the blocks integrated.
         """
-        if self.allow_installs:
-            self.logger.warning(
-                "SECURITY WARNING: Automatic dependency installation is enabled. "
-                "Only use blocks from trusted sources to prevent the execution of malicious code."
-            )
-        
-        # block manager toml
-        self._load_settings_toml()
         
         if os.path.exists(os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")):
             try:
@@ -209,6 +206,12 @@ class BlockManager(metaclass=SingletonMeta):
         """
         Sets up the BlockManager.
         """
+        if self.allow_installs:
+            self.logger.warning(
+                "SECURITY WARNING: Automatic dependency installation is enabled. "
+                "Only use blocks from trusted sources to prevent the execution of malicious code."
+            )
+            
         if not self.block_manager_info:
             if "blocks" not in self.block_manager_info.keys():
                 self.block_manager_info["blocks"] = {}
@@ -447,6 +450,7 @@ class BlockManager(metaclass=SingletonMeta):
             bool: True if a new hook was attached, False otherwise.
         """
         HAS_NEW = False
+
         for hook in block_hooks:
             if callable(hook):
                 fn_name = hook.__name__
@@ -478,7 +482,8 @@ class BlockManager(metaclass=SingletonMeta):
             with open(toml_path, 'r') as f:
                 self.block_manager_info = toml.load(f)
                 
-                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False)
+                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
+                
         
     def _save_settings_toml(self):
         """
@@ -536,8 +541,20 @@ class BlockManager(metaclass=SingletonMeta):
             List[str]: A list of schemas for the blocks.
         """
         schemas = [ x["schemas"] for x in self.block_manager_info["blocks"].values() if "schemas" in x.keys() and x["schemas"] ]
-        return schemas
+        schemas_flattened = [item for sublist in schemas for item in sublist]
+        return schemas_flattened
     
+    async def get_db_engine_async(self) -> Any:
+        """
+        Gets the database engine for the blocks.
+
+        Returns:
+            Any: The database engine for the blocks.
+        """
+        if not self._db_engine:
+            raise Exception("No database engine found")
+        yield self._db_engine
+
     def get_db_engine(self) -> Any:
         """
         Gets the database engine for the blocks.
@@ -548,3 +565,10 @@ class BlockManager(metaclass=SingletonMeta):
         if not self._db_engine:
             raise Exception("No database engine found")
         return self._db_engine
+        
+    def set_db_engine(self, engine : Any) -> bool:
+        if self._db_engine:
+            self.logger.warning("Database engine already set")
+            return False
+        self._db_engine = engine
+        return True
