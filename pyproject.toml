@@ -32,6 +32,3 @@ dev = [
 
 [project.scripts]
 fastapi-blocks = "fastapi_blocks.cli:main"
-
-[project.entry-points."fastapi_blocks"]
-"__main__" = "fastapi_blocks.cli:main"
