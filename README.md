@@ -14,6 +14,28 @@
 pip install fastapi-blocks
 ```
 
+Then run
+```bash
+python -m fastapi_blocks setup BLOCKS_FOLDER
+```
+*Replace `BLOCKS_FOLDER` with path to blocks folder from root
+
+## Examples
+
+# Example Block
+- [Example Block](https://github.com/r3sbarra/fablocks-example-block) - An example block
+
+# Example Project
+- [Example Project](https://github.com/r3sbarra/fablocks-example-project) - An example project
+
+## Reserved Words
+
+# Variable names
+- `router` - In router files, the variable router is used to searche for router to include into app.
+
+# Template names
+- 
+
 ## Todo:
 
 - [ ] Better mako

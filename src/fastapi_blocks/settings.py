@@ -23,7 +23,7 @@ class BlockSettingsBase(BaseSettings):
         block_path (str): The path to the block.
     """
     name : str
-    version : float
+    version : str
     block_path : str
     requirements : List[str] = []
     dependancies : List[str] = []
@@ -33,6 +33,7 @@ class BlockSettingsBase(BaseSettings):
     api_router : Optional[str] = None
     extra_block_settings : Optional[str] = None
     load_order : int = 9
+    schemas : Optional[List[str]] = None
     
     module : Optional[str] = None
     
@@ -66,6 +67,12 @@ class BlockSettingsBase(BaseSettings):
         if not value:
             return None
         return path_to_module(os.path.join(self.block_path, value))
+    
+    @field_serializer('schemas')
+    def serialize_schemas(self, value: List[str]) -> Union[List[str], None]:
+        if not value:
+            return None
+        return [path_to_module(os.path.join(self.block_path, v)) for v in value]
     
 class BlockSettingsMixin(BaseSettings):
     """

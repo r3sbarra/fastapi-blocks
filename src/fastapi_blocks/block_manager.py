@@ -54,10 +54,7 @@ class BlockManager(metaclass=SingletonMeta):
     api_router: APIRouter = APIRouter(prefix='/api')
     
     templates : Optional[Environment] = None
-    
-    db_engine : Optional[Any] = None 
-    
-    db_engine : Optional[Any] = None 
+    _db_engine : Optional[Any] = None
     
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
@@ -68,7 +65,7 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
-    auto_setup_on_init : bool = True
+    late_setup : bool = False
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -82,6 +79,10 @@ class BlockManager(metaclass=SingletonMeta):
         for key, value in kwargs.items():
             setattr(self, key, value)
             
+        # block manager toml
+        if not self.late_setup:
+            self._load_settings_toml()
+        
         self.logger.info("BlockManager initialized.")
         
     def init_app(self, app_instance: 'FastAPI'):
@@ -94,14 +95,6 @@ class BlockManager(metaclass=SingletonMeta):
         Returns:
             FastAPI: The FastAPI application instance with the blocks integrated.
         """
-        if self.allow_installs:
-            self.logger.warning(
-                "SECURITY WARNING: Automatic dependency installation is enabled. "
-                "Only use blocks from trusted sources to prevent the execution of malicious code."
-            )
-        
-        # block manager toml
-        self._load_settings_toml()
         
         if os.path.exists(os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")):
             try:
@@ -124,14 +117,6 @@ class BlockManager(metaclass=SingletonMeta):
         # Use app logger if exists
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
-        # Basic setup
-        if self.auto_setup_on_init:
-            HAS_INSTALLS =  self._setup()
-        
-            if HAS_INSTALLS and self.restart_on_install:
-                self.logger.warning("New items installed, please restart the server.")
-                os._exit(0)
-            
         # Setup Templates
         if not self.templates:
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
@@ -139,16 +124,6 @@ class BlockManager(metaclass=SingletonMeta):
             
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
-        
-        # Import from Mako
-        if self.block_manager_module:
-            if hasattr(self.block_manager_module, 'template_router'):
-                self.templates_router.include_router(self.block_manager_module.template_router)
-                self.logger.info("Mounted template router from mako file")
-                
-            if hasattr(self.block_manager_module, 'api_router'):
-                self.templates_router.include_router(self.block_manager_module.api_router)
-                self.logger.info("Mounted api router from mako file")
         
         # Import from toml
         for block_name, block_info in sorted_blocks:
@@ -160,7 +135,7 @@ class BlockManager(metaclass=SingletonMeta):
                 self._run_hooks(self._block_preload_hooks, block_info=block_info)
                         
                 # Mount statics
-                if block_info['statics'] and os.path.exists(block_info['statics']):
+                if block_info.get('statics', None) and os.path.exists(block_info['statics']):
                     app_instance.mount(
                         f"/{block_name}/static", 
                         StaticFiles(directory=block_info['statics']), 
@@ -170,14 +145,14 @@ class BlockManager(metaclass=SingletonMeta):
                 
                 # Mount routers
                 ## Template router
-                if block_info['template_router'] and not hasattr(self.block_manager_module, 'template_router'):
+                if block_info.get('template_router', None) and not hasattr(self.block_manager_module, 'template_router'):
                     module = importlib.import_module(block_info['template_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.templates_router.include_router(module.router)
                         self.logger.info("Mounted router: %s", block_info['template_router'])
                 
                 ## API router
-                if block_info['api_router'] and not hasattr(self.block_manager_module, 'api_router'):
+                if block_info.get('api_router', None) and not hasattr(self.block_manager_module, 'api_router'):
                     module = importlib.import_module(block_info['api_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.api_router.include_router(module.router)
@@ -190,8 +165,17 @@ class BlockManager(metaclass=SingletonMeta):
                 self.logger.exception("Failed to import block %s: %s", block_name, e)
                 if not self.allow_block_import_failure:
                     raise Exception(f"Failed to import block {block_name}: {e}")
+
+        # Import from Mako
+        if self.block_manager_module:
+            if hasattr(self.block_manager_module, 'template_router') and type(self.block_manager_module.template_router) == APIRouter:
+                self.templates_router.include_router(self.block_manager_module.template_router)
+                self.logger.info("Mounted template router from mako file")
                 
-                
+            if hasattr(self.block_manager_module, 'api_router') and type(self.block_manager_module.api_router) == APIRouter:
+                self.api_router.include_router(self.block_manager_module.api_router)
+                self.logger.info("Mounted api router from mako file")                
+            
         app_instance.include_router(self.templates_router)
         app_instance.include_router(self.api_router)
         
@@ -222,8 +206,33 @@ class BlockManager(metaclass=SingletonMeta):
         """
         Sets up the BlockManager.
         """
+        if self.allow_installs:
+            self.logger.warning(
+                "SECURITY WARNING: Automatic dependency installation is enabled. "
+                "Only use blocks from trusted sources to prevent the execution of malicious code."
+            )
+            
         if not self.block_manager_info:
-            self._load_settings_toml()
+            if "blocks" not in self.block_manager_info.keys():
+                self.block_manager_info["blocks"] = {}
+            if "installs" not in self.block_manager_info.keys():
+                self.block_manager_info["installs"] = []
+            if "extra_block_settings" not in self.block_manager_info.keys():
+                self.block_manager_info["extra_block_settings"] = []
+            if "templates_dir" not in self.block_manager_info.keys():
+                self.block_manager_info["templates_dir"] = []
+            if "statics" not in self.block_manager_info.keys():
+                self.block_manager_info["statics"] = []
+                
+            if "hooks" not in self.block_manager_info.keys():
+                self.block_manager_info["hooks"] = {
+                    "_start_hooks" : {},
+                    "_block_preload_hooks" : {},
+                    "_block_postload_hooks" : {}
+                }
+                
+            if "settings" not in self.block_manager_info.keys():
+                self.block_manager_info["settings"] = {}
         
         has_changes = self._setup_blocks()
         has_changes = self._setup_hooks() or has_changes
@@ -264,8 +273,6 @@ class BlockManager(metaclass=SingletonMeta):
                         raise Exception(error_msg)
         else:
             raise Exception("No blocks folder found")
-        
-        # self._save_settings_toml()
         
         return HAS_INSTALLS
     
@@ -349,7 +356,6 @@ class BlockManager(metaclass=SingletonMeta):
         return requires_restart
     
     # Hooks
-    
     def _setup_hooks(self) -> bool:
         """
         Discovers and sets up hooks for the blocks.
@@ -392,8 +398,6 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             raise Exception("No blocks folder found")
         
-        
-        # self._save_settings_toml()
         return requires_restart
     
     def _resolve_hooks(self, hooks: Dict) -> List:
@@ -446,6 +450,7 @@ class BlockManager(metaclass=SingletonMeta):
             bool: True if a new hook was attached, False otherwise.
         """
         HAS_NEW = False
+
         for hook in block_hooks:
             if callable(hook):
                 fn_name = hook.__name__
@@ -471,33 +476,14 @@ class BlockManager(metaclass=SingletonMeta):
         toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.block_manager_info = {"blocks": {}, "installs": [], "templates_dir": [], "extra_block_settings": [], "hooks" : {}}
-            self._save_settings_toml()
+            self.logger.warning("No block_infos.toml found. Please run setup first")
+            raise Exception("No block_infos.toml found. Please run setup first")
         else:
             with open(toml_path, 'r') as f:
                 self.block_manager_info = toml.load(f)
                 
-                if "blocks" not in self.block_manager_info.keys():
-                    self.block_manager_info["blocks"] = {}
-                if "installs" not in self.block_manager_info.keys():
-                    self.block_manager_info["installs"] = []
-                if "extra_block_settings" not in self.block_manager_info.keys():
-                    self.block_manager_info["extra_block_settings"] = []
-                if "templates_dir" not in self.block_manager_info.keys():
-                    self.block_manager_info["templates_dir"] = []
-                    
-                if "hooks" not in self.block_manager_info.keys():
-                    self.block_manager_info["hooks"] = {
-                        "_start_hooks" : {},
-                        "_block_preload_hooks" : {},
-                        "_block_postload_hooks" : {}
-                    }
-                    
-                if "settings" not in self.block_manager_info.keys():
-                    self.block_manager_info["settings"] = {}
+                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
                 
-                self.auto_setup_on_init = self.block_manager_info["settings"].get("auto_setup_on_init", True)
-                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False)
         
     def _save_settings_toml(self):
         """
@@ -546,3 +532,43 @@ class BlockManager(metaclass=SingletonMeta):
         
         with open(init_file_path, 'w') as f:
             f.write(rendered)
+
+    def get_schemas(self) -> List[str]:
+        """
+        Gets the schemas for the blocks in str format. They will need to be imported afterwards with importlib
+
+        Returns:
+            List[str]: A list of schemas for the blocks.
+        """
+        schemas = [ x["schemas"] for x in self.block_manager_info["blocks"].values() if "schemas" in x.keys() and x["schemas"] ]
+        schemas_flattened = [item for sublist in schemas for item in sublist]
+        return schemas_flattened
+    
+    async def get_db_engine_async(self) -> Any:
+        """
+        Gets the database engine for the blocks.
+
+        Returns:
+            Any: The database engine for the blocks.
+        """
+        if not self._db_engine:
+            raise Exception("No database engine found")
+        yield self._db_engine
+
+    def get_db_engine(self) -> Any:
+        """
+        Gets the database engine for the blocks.
+
+        Returns:
+            Any: The database engine for the blocks.
+        """
+        if not self._db_engine:
+            raise Exception("No database engine found")
+        return self._db_engine
+        
+    def set_db_engine(self, engine : Any) -> bool:
+        if self._db_engine:
+            self.logger.warning("Database engine already set")
+            return False
+        self._db_engine = engine
+        return True
