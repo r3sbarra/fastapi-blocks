@@ -8,9 +8,9 @@ from fastapi.staticfiles import StaticFiles
 
 from jinja2 import FileSystemLoader, Environment
 
-from .utils import generate_random_name, path_to_module
-
 from .settings import BlockSettingsBase, BlockSettingsMixin
+
+from dirhash import dirhash
 
 import logging
 import os
@@ -20,9 +20,7 @@ import subprocess
 import sys
 import inspect
 import threading
-import hashlib
 import json
-from dirhash import dirhash
 
 class SingletonMeta(type):
     _instances = {}
@@ -305,7 +303,7 @@ class BlockManager(metaclass=SingletonMeta):
             hashes[block_name] = {}
             return True
 
-        dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml"])
+        dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
         return dir_hash == hashes[block_name]
 
     def _save_block_hashes(self, block_path: str) -> None:
@@ -320,7 +318,7 @@ class BlockManager(metaclass=SingletonMeta):
             hashes = {}
 
         block_name = os.path.basename(block_path)
-        hashes[block_name] = dirhash(block_path, 'sha256', match=["*.py", "*.toml"])
+        hashes[block_name] = dirhash(block_path, 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
 
         with open(hashes_file, 'w') as f:
             json.dump(hashes, f, indent=4)
