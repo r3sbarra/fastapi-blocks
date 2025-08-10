@@ -63,7 +63,6 @@ class BlockManager(metaclass=SingletonMeta):
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
     block_manager_info: dict = {}
-    block_manager_module : Any = None
     
     allow_block_import_failure: bool = False
     restart_on_install: bool = True
@@ -104,12 +103,6 @@ class BlockManager(metaclass=SingletonMeta):
             FastAPI: The FastAPI application instance with the blocks integrated.
         """
         
-        if os.path.exists(os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")):
-            try:
-                self.block_manager_module = importlib.import_module(path_to_module(self.block_manager_folder))
-            except ImportError as e:
-                self.logger.error(f"Failed to import block manager module: {e}")
-                
         # Load Hooks
         self._start_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_start_hooks", {}))
         self._block_preload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_preload_hooks", {}))
@@ -153,14 +146,14 @@ class BlockManager(metaclass=SingletonMeta):
                 
                 # Mount routers
                 ## Template router
-                if block_info.get('template_router', None) and not hasattr(self.block_manager_module, 'template_router'):
+                if block_info.get('template_router', None):
                     module = importlib.import_module(block_info['template_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.templates_router.include_router(module.router)
                         self.logger.info("Mounted router: %s", block_info['template_router'])
                 
                 ## API router
-                if block_info.get('api_router', None) and not hasattr(self.block_manager_module, 'api_router'):
+                if block_info.get('api_router', None):
                     module = importlib.import_module(block_info['api_router'])
                     if hasattr(module, 'router') and type(module.router) == APIRouter:
                         self.api_router.include_router(module.router)
@@ -172,17 +165,7 @@ class BlockManager(metaclass=SingletonMeta):
             except Exception as e:
                 self.logger.exception("Failed to import block %s: %s", block_name, e)
                 if not self.allow_block_import_failure:
-                    raise Exception(f"Failed to import block {block_name}: {e}")
-
-        # Import from Mako
-        if self.block_manager_module:
-            if hasattr(self.block_manager_module, 'template_router') and type(self.block_manager_module.template_router) == APIRouter:
-                self.templates_router.include_router(self.block_manager_module.template_router)
-                self.logger.info("Mounted template router from mako file")
-                
-            if hasattr(self.block_manager_module, 'api_router') and type(self.block_manager_module.api_router) == APIRouter:
-                self.api_router.include_router(self.block_manager_module.api_router)
-                self.logger.info("Mounted api router from mako file")                
+                    raise Exception(f"Failed to import block {block_name}: {e}")         
             
         app_instance.include_router(self.templates_router)
         app_instance.include_router(self.api_router)
@@ -320,7 +303,7 @@ class BlockManager(metaclass=SingletonMeta):
             return True
 
         dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml"])
-        return dir_hash == hashes[block_name]['dirhash']
+        return dir_hash == hashes[block_name]
 
     def _save_block_hashes(self, block_path: str) -> None:
         """
