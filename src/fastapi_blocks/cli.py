@@ -53,11 +53,6 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False, save_ha
     print("setup complete")
 
 
-
-
-
-
-
 def make_block(block_name):
     """
     Creates a new block.
@@ -138,8 +133,6 @@ def main():
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
     elif args.command == "create":
         make_block(args.block_name)
-    elif args.command == "verify":
-        verify(args.status)
     else:
         parser.print_help()
         
