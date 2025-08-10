@@ -65,7 +65,6 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
-    late_setup : bool = False
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -74,13 +73,17 @@ class BlockManager(metaclass=SingletonMeta):
     _block_preload_hooks : List = []    # Runs before each block info is loaded
     _block_postload_hooks : List = []   # Runs after each block info is loaded
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, 
+            *args,
+            late_load : bool = False, 
+            **kwargs
+        ):
         
         for key, value in kwargs.items():
             setattr(self, key, value)
-            
+        
         # block manager toml
-        if not self.late_setup:
+        if not late_load:
             self._load_settings_toml()
         
         self.logger.info("BlockManager initialized.")
@@ -208,7 +211,10 @@ class BlockManager(metaclass=SingletonMeta):
         """
         if self.allow_installs:
             self.logger.warning(
-                "SECURITY WARNING: Automatic dependency installation is enabled. "
+                "\x1b[93m"
+                "SECURITY WARNING: "
+                "\x1b[0m" 
+                "Automatic dependency installation is enabled. "
                 "Only use blocks from trusted sources to prevent the execution of malicious code."
             )
             
@@ -483,6 +489,7 @@ class BlockManager(metaclass=SingletonMeta):
                 self.block_manager_info = toml.load(f)
                 
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
+                self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
                 
         
     def _save_settings_toml(self):
@@ -491,6 +498,11 @@ class BlockManager(metaclass=SingletonMeta):
         """
         if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
             os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
+            
+        self.block_manager_info["settings"]["allow_installs"] = self.allow_installs
+        self.block_manager_info["settings"]["blocks_folder"] = self.blocks_folder
+        
+        # save toml 
         toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         with open(toml_path, 'w') as f:
             toml.dump(self.block_manager_info, f)
