@@ -1,6 +1,5 @@
 from types import ModuleType
-from pydantic import BaseModel, ConfigDict
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 from typing import Optional, List, Any, Dict
 
 from fastapi import FastAPI, APIRouter
@@ -8,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from jinja2 import FileSystemLoader, Environment
-from mako.template import Template
 
 from .utils import generate_random_name, path_to_module
 
@@ -24,6 +22,7 @@ import inspect
 import threading
 import hashlib
 import json
+from dirhash import dirhash
 
 class SingletonMeta(type):
     _instances = {}
@@ -70,7 +69,7 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
-    verify_blocks: bool = False
+    verify_blocks: bool = False             # Set to true in production
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -318,16 +317,10 @@ class BlockManager(metaclass=SingletonMeta):
         block_name = os.path.basename(block_path)
         if block_name not in hashes:
             hashes[block_name] = {}
+            return True
 
-        for root, _, files in os.walk(block_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                with open(file_path, 'rb') as f:
-                    file_hash = hashlib.sha256(f.read()).hexdigest()
-
-                if file in hashes[block_name] and hashes[block_name][file] != file_hash:
-                    raise Exception(f"File '{file_path}' has been modified.")
-        return True
+        dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml"])
+        return dir_hash == hashes[block_name]['dirhash']
 
     def _save_block_hashes(self, block_path: str) -> None:
         """
@@ -341,15 +334,7 @@ class BlockManager(metaclass=SingletonMeta):
             hashes = {}
 
         block_name = os.path.basename(block_path)
-        if block_name not in hashes:
-            hashes[block_name] = {}
-
-        for root, _, files in os.walk(block_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                with open(file_path, 'rb') as f:
-                    file_hash = hashlib.sha256(f.read()).hexdigest()
-                hashes[block_name][file] = file_hash
+        hashes[block_name] = dirhash(block_path, 'sha256', match=["*.py", "*.toml"])
 
         with open(hashes_file, 'w') as f:
             json.dump(hashes, f, indent=4)
