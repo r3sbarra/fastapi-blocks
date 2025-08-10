@@ -22,6 +22,8 @@ import subprocess
 import sys
 import inspect
 import threading
+import hashlib
+import json
 
 class SingletonMeta(type):
     _instances = {}
@@ -68,6 +70,7 @@ class BlockManager(metaclass=SingletonMeta):
     restart_on_install: bool = True
     override_duplicate_block : bool = False
     allow_installs : bool = False
+    verify_blocks: bool = False
     
     logger: logging.Logger = logging.getLogger(__name__)
     
@@ -297,6 +300,60 @@ class BlockManager(metaclass=SingletonMeta):
         return None
     
         
+    def _verify_block_hash(self, block_path: str) -> bool:
+        """
+        Verifies the hash of the block files.
+        """
+        
+        if not self.verify_blocks:
+            return True
+
+        hashes_file = os.path.join(self.working_dir, self.block_manager_folder, 'block_hashes.json')
+        if os.path.exists(hashes_file):
+            with open(hashes_file, 'r') as f:
+                hashes = json.load(f)
+        else:
+            hashes = {}
+
+        block_name = os.path.basename(block_path)
+        if block_name not in hashes:
+            hashes[block_name] = {}
+
+        for root, _, files in os.walk(block_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                with open(file_path, 'rb') as f:
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
+
+                if file in hashes[block_name] and hashes[block_name][file] != file_hash:
+                    raise Exception(f"File '{file_path}' has been modified.")
+        return True
+
+    def _save_block_hashes(self, block_path: str) -> None:
+        """
+        Saves the hash of the block files.
+        """
+        hashes_file = os.path.join(self.working_dir, self.block_manager_folder, 'block_hashes.json')
+        if os.path.exists(hashes_file):
+            with open(hashes_file, 'r') as f:
+                hashes = json.load(f)
+        else:
+            hashes = {}
+
+        block_name = os.path.basename(block_path)
+        if block_name not in hashes:
+            hashes[block_name] = {}
+
+        for root, _, files in os.walk(block_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                with open(file_path, 'rb') as f:
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
+                hashes[block_name][file] = file_hash
+
+        with open(hashes_file, 'w') as f:
+            json.dump(hashes, f, indent=4)
+
     def _load_block_config(self, 
             block_path: str, 
             config_path : str,
@@ -305,11 +362,17 @@ class BlockManager(metaclass=SingletonMeta):
         
         requires_restart = False
         
+        # Verify block hash
+        self._verify_block_hash(block_path)
+
         # Load Settings
         with open(config_path, 'r') as f:
             block_config = toml.load(f)
             
-        block_settings = settings_class(**block_config, block_path=block_path)
+        # Extract the 'block' section if it exists, otherwise use the whole config
+        block_settings_data = block_config.get('block', block_config)
+            
+        block_settings = settings_class(**block_settings_data, block_path=block_path)
     
         # Block Info
         block_info_dict = block_settings.get_dict()
@@ -386,7 +449,10 @@ class BlockManager(metaclass=SingletonMeta):
                         with open(block_config_path, 'r') as f:
                             block_config = toml.load(f)
                             
-                        block_settings = dynamic_block_class(**block_config, block_path=item.path)
+                        # Extract the 'block' section if it exists, otherwise use the whole config
+                        block_settings_data = block_config.get('block', block_config)
+                            
+                        block_settings = dynamic_block_class(**block_settings_data, block_path=item.path)
                         
                         # Hooks
                         block_hooks_start = block_settings._start_hooks()
@@ -530,16 +596,20 @@ class BlockManager(metaclass=SingletonMeta):
                 
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
                 self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
+                self.verify_blocks = self.block_manager_info["settings"].get("verify_blocks", self.verify_blocks)
                 
     def _save_settings_toml(self):
         """
         Saves the settings to the block_infos.toml file.
         """
         if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
+            print(f"DEBUG: Creating directory: {os.path.join(self.working_dir, self.block_manager_folder)}")
             os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
+            print(f"DEBUG: Directory created: {os.path.exists(os.path.join(self.working_dir, self.block_manager_folder))}")
             
         self.block_manager_info["settings"]["allow_installs"] = self.allow_installs
         self.block_manager_info["settings"]["blocks_folder"] = self.blocks_folder
+        self.block_manager_info["settings"]["verify_blocks"] = self.verify_blocks
         
         # save toml 
         toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')

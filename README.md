@@ -41,3 +41,4 @@ python -m fastapi_blocks setup BLOCKS_FOLDER
 - [ ] Put more meaningful tests
 - [ ] Add command to setup templates/default
 - [ ] Add todos
+- [ ] Add some sort of security check   

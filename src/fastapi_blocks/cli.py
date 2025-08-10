@@ -5,7 +5,7 @@ from typing import Union
 from pathlib import Path
 import importlib
 
-def setup(folder : Union[str, None] = None, auto_install : bool = False):
+def setup(folder : Union[str, None] = None, auto_install : bool = False, save_hashes_flag: bool = False, verify_blocks_flag: bool = False):
     """
     Run setup
     """
@@ -23,8 +23,21 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False):
             manager = BlockManager(allow_installs=auto_install)
         except Exception as e:
             print(e)
+
+    manager.verify_blocks = verify_blocks_flag
             
     manager._setup()
+    manager._save_settings_toml()
+
+    if save_hashes_flag:
+        projects_root_dir = os.path.join(manager.working_dir, manager.blocks_folder)
+        if os.path.exists(projects_root_dir):
+            for item in os.scandir(projects_root_dir):
+                if item.is_dir() and os.path.exists(os.path.join(item.path, "block_config.toml")):
+                    manager._save_block_hashes(item.path)
+                    print(f"Hashes saved for block: {item.name}")
+        else:
+            print("No blocks folder found.")
         
     # Add block_infos.toml to .gitignore
     if not os.path.exists(os.path.join(cwd, ".gitignore")):
@@ -38,6 +51,11 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False):
                 f.write("block_infos.toml\n")
                 
     print("setup complete")
+
+
+
+
+
 
 
 def make_block(block_name):
@@ -95,10 +113,16 @@ def main():
     parser_setup = subparsers.add_parser("setup", help="Runs setup")
     parser_setup.add_argument("--folder", "-f", type=str, default=None, help="The folder path where the blocks are stored")
     parser_setup.add_argument("--auto-install", "-A", action="store_true", help="Automatically install missing dependencies", default=False)
+    parser_setup.add_argument("--save-hashes", "-S", action="store_true", help="Save current block hashes after setup.", default=False)
+    parser_setup.add_argument("--verify-blocks", "-V", action="store_true", help="Enable hash-based block verification.", default=False)
 
     # Create command
     parser_create = subparsers.add_parser("create", help="Creates a new block.")
     parser_create.add_argument("block_name", type=str, help="The name of the block to create.")
+
+    # Verify command
+    parser_verify = subparsers.add_parser("verify", help="Enables or disables block verification.")
+    parser_verify.add_argument("status", type=str, choices=['on', 'off'], help="The status of block verification.")
 
     # Example command
     parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
@@ -111,7 +135,11 @@ def main():
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
-        setup(args.folder, args.auto_install)
+        setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
+    elif args.command == "create":
+        make_block(args.block_name)
+    elif args.command == "verify":
+        verify(args.status)
     else:
         parser.print_help()
         
