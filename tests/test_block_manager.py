@@ -78,3 +78,7 @@ def test_block_manager_init_no_block_infos_toml(tmp_path):
 
     with pytest.raises(Exception, match="No block_infos.toml found. Please run setup first"):
         BlockManager(working_dir=str(tmp_path), late_load=False)
+
+def test_basic(test_app, block_manager_instance):
+    block_manager_instance.init_app(test_app.app)
+    assert test_app.app.block_manager == block_manager_instance

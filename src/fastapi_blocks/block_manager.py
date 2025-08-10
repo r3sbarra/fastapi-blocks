@@ -119,10 +119,13 @@ class BlockManager(metaclass=SingletonMeta):
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
         # Setup Templates
-        if not self.templates:
+        if not self.templates and "templates_dir" in self.block_manager_info.keys() and self.block_manager_info["templates_dir"] != "":
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
             self.templates = Jinja2Templates(env=jinja2env)
             
+        if not "blocks" in self.block_manager_info.keys():
+            return app_instance
+        
         # Get items load order
         sorted_blocks = sorted(self.block_manager_info["blocks"].items(), key=lambda x: x[1]['load_order'])
         
