@@ -1,23 +1,29 @@
 import argparse
 import shutil
 import os
+from typing import Union
 from pathlib import Path
 
 
-def setup(folder : str = "blocks", auto_install : bool = False):
+def setup(folder : Union[str, None] = None, auto_install : bool = False):
     """
     Run setup
     """
-    from fastapi import FastAPI
     from fastapi_blocks import BlockManager
     
     cwd = os.getcwd()
     
-    if not os.path.exists(os.path.join(cwd, folder)):
-        os.mkdir(os.path.join(cwd, folder))
     
-    app = FastAPI()
-    manager = BlockManager(blocks_folder=folder, allow_installs=auto_install)
+    # Check for existing blockmanager.toml
+    if folder:
+        if not os.path.exists(os.path.join(cwd, folder)):
+            os.mkdir(os.path.join(cwd, folder))
+        manager = BlockManager(blocks_folder=folder, allow_installs=auto_install, late_load=True)
+    else:
+        try:
+            manager = BlockManager(allow_installs=auto_install)
+        except Exception as e:
+            print(e)
     manager._setup(save_mako=True)
         
     # Add block_infos.toml to .gitignore
@@ -87,7 +93,7 @@ def main():
     
     # Setup command
     parser_setup = subparsers.add_parser("setup", help="Runs setup")
-    parser_setup.add_argument("folder_path", type=str, default="blocks", help="The folder path where the blocks are stored")
+    parser_setup.add_argument("--folder", "-f", type=str, default=None, help="The folder path where the blocks are stored")
     parser_setup.add_argument("--auto-install", "-A", action="store_true", help="Automatically install missing dependencies", default=False)
 
     # Create command
@@ -105,7 +111,7 @@ def main():
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
-        setup(args.folder_path, args.auto_install)
+        setup(args.folder, args.auto_install)
     else:
         parser.print_help()
         
