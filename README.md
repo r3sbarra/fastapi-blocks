@@ -38,7 +38,6 @@ python -m fastapi_blocks setup BLOCKS_FOLDER
 
 ## Todo:
 
-- [ ] Better mako
 - [ ] Put more meaningful tests
 - [ ] Add command to setup templates/default
 - [ ] Add todos

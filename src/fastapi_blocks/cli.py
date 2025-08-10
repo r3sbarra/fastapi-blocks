@@ -3,7 +3,7 @@ import shutil
 import os
 from typing import Union
 from pathlib import Path
-
+import importlib
 
 def setup(folder : Union[str, None] = None, auto_install : bool = False):
     """
@@ -12,7 +12,6 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False):
     from fastapi_blocks import BlockManager
     
     cwd = os.getcwd()
-    
     
     # Check for existing blockmanager.toml
     if folder:
@@ -24,7 +23,8 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False):
             manager = BlockManager(allow_installs=auto_install)
         except Exception as e:
             print(e)
-    manager._setup(save_mako=True)
+            
+    manager._setup()
         
     # Add block_infos.toml to .gitignore
     if not os.path.exists(os.path.join(cwd, ".gitignore")):

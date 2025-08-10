@@ -208,7 +208,7 @@ class BlockManager(metaclass=SingletonMeta):
     
         return DynamicBlockSettings
     
-    def _setup(self, save_mako : bool = False) -> bool:
+    def _setup(self) -> bool:
         """
         Sets up the BlockManager.
         """
@@ -247,9 +247,6 @@ class BlockManager(metaclass=SingletonMeta):
         has_changes = self._setup_hooks() or has_changes
         
         self._save_settings_toml()
-        
-        if save_mako:
-            self._save_mako()
         
         return has_changes
     
@@ -475,78 +472,6 @@ class BlockManager(metaclass=SingletonMeta):
                         self.block_manager_info["hooks"][hook_group][module.__name__].append(fn_name)
                         HAS_NEW = True
         return HAS_NEW
-    
-    # Settings 
-    def _load_settings_toml(self):
-        """
-        Loads the settings from the block_infos.toml file.
-        """
-        
-        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
-        
-        if not os.path.exists(toml_path):
-            self.logger.warning("No block_infos.toml found. Please run setup first")
-            raise Exception("No block_infos.toml found. Please run setup first")
-        else:
-            with open(toml_path, 'r') as f:
-                self.block_manager_info = toml.load(f)
-                
-                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
-                self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
-                
-        
-    def _save_settings_toml(self):
-        """
-        Saves the settings to the block_infos.toml file.
-        """
-        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
-            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
-            
-        self.block_manager_info["settings"]["allow_installs"] = self.allow_installs
-        self.block_manager_info["settings"]["blocks_folder"] = self.blocks_folder
-        
-        # save toml 
-        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
-        with open(toml_path, 'w') as f:
-            toml.dump(self.block_manager_info, f)
-
-    def _save_mako(self):
-        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
-            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
-            
-        init_file_path = os.path.join(self.working_dir, self.block_manager_folder, "__init__.py")
-        
-        used_names = []
-        
-        template_routers_dict = {}
-        template_routers = [v["template_router"] for x, v in self.block_manager_info["blocks"].items() if "template_router" in v.keys() and v["template_router"]]
-        for x in template_routers:
-            random_name = generate_random_name(exclude=used_names)
-            used_names.append(random_name)
-            template_routers_dict[random_name] = x
-            
-        api_routers_dict = {}
-        api_routers = [v["api_router"] for x, v in self.block_manager_info["blocks"].items() if "api_router" in v.keys() and v["api_router"]]
-        for x in api_routers:
-            random_name = generate_random_name(exclude=used_names)
-            used_names.append(random_name)
-            api_routers_dict[random_name] = x
-            
-        data = {
-            "template_routers" : template_routers_dict,
-            "api_routers" : api_routers_dict
-        }
-            
-        current_folder = os.path.dirname(os.path.abspath(__file__))
-        mako_path = os.path.join(current_folder, "__init__.py.mako")
-            
-        with open(mako_path) as f:
-            template = Template(f.read())
-
-        rendered = template.render(**data)
-        
-        with open(init_file_path, 'w') as f:
-            f.write(rendered)
 
     def get_schemas(self) -> List[str]:
         """
@@ -587,3 +512,36 @@ class BlockManager(metaclass=SingletonMeta):
             return False
         self._db_engine = engine
         return True
+
+    # Settings 
+    def _load_settings_toml(self):
+        """
+        Loads the settings from the block_infos.toml file.
+        """
+        
+        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
+        
+        if not os.path.exists(toml_path):
+            self.logger.warning("No block_infos.toml found. Please run setup first")
+            raise Exception("No block_infos.toml found. Please run setup first")
+        else:
+            with open(toml_path, 'r') as f:
+                self.block_manager_info = toml.load(f)
+                
+                self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
+                self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
+                
+    def _save_settings_toml(self):
+        """
+        Saves the settings to the block_infos.toml file.
+        """
+        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
+            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
+            
+        self.block_manager_info["settings"]["allow_installs"] = self.allow_installs
+        self.block_manager_info["settings"]["blocks_folder"] = self.blocks_folder
+        
+        # save toml 
+        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
+        with open(toml_path, 'w') as f:
+            toml.dump(self.block_manager_info, f)
