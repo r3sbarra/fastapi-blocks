@@ -115,3 +115,6 @@ dmypy.json
 # pytype
 .pytype/block_infos.toml
 block_infos.toml
+
+# LLM
+GEMINI.md
