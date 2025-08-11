@@ -13,37 +13,46 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False, save_ha
     
     cwd = os.getcwd()
     
-    # Check for existing blockmanager.toml
-    if folder:
-        if not os.path.exists(os.path.join(cwd, folder)):
-            os.mkdir(os.path.join(cwd, folder))
-        manager = BlockManager(blocks_folder=folder, allow_installs=auto_install, late_load=True)
+    if not os.path.exists(os.path.join(cwd, folder)):
+        os.mkdir(os.path.join(cwd, folder))
+    
+    app = FastAPI()    
+    manager = BlockManager(blocks_folder=folder)
+    if manager._setup(save_mako=True):
+        print(f"Setup complete. Folder: {folder}")
     else:
-        try:
-            manager = BlockManager(allow_installs=auto_install)
-        except Exception as e:
-            print(e)
+        with open(os.path.join(cwd, ".gitignore"), "r") as f:
+            lines = f.readlines()
+        if "block_infos.toml\n" not in lines:
+            with open(os.path.join(cwd, ".gitignore"), "a") as f:
+                f.write("block_infos.toml\n")
+                
+    print("setup complete")
 
-    manager.verify_blocks = verify_blocks_flag
-            
-    manager._setup()
-    manager._save_settings_toml()
 
-    if save_hashes_flag:
-        projects_root_dir = os.path.join(manager.working_dir, manager.blocks_folder)
-        if os.path.exists(projects_root_dir):
-            for item in os.scandir(projects_root_dir):
-                if item.is_dir() and os.path.exists(os.path.join(item.path, "block_config.toml")):
-                    manager._save_block_hashes(item.path)
-                    print(f"Hashes saved for block: {item.name}")
-        else:
-            print("No blocks folder found.")
-        
-    # Add block_infos.toml to .gitignore
-    if not os.path.exists(os.path.join(cwd, ".gitignore")):
-        with open(os.path.join(cwd, ".gitignore"), "w") as f:
-            f.write("block_infos.toml\n")
-    else:
+def make_block(block_name):
+    """
+    Creates a new block.
+    """
+    from fastapi_blocks import BlockManager
+    block_manager = BlockManager()
+    block_manager._load_settings_toml()
+    
+    if not block_manager.block_manager_info:
+        print(f"Error: 'block_manager_info' is empty. Start the app at least once")
+        return
+    
+    # copy placeholder
+    source = Path(__file__).parent / "default_blocks" / "block_template"
+    dest = Path.cwd() / "blocks" / block_name
+    
+    if dest.exists():
+        print(f"Error: '{block_name}' already exists.")
+        return
+    
+    print(f"Copying 'block_template' to '{dest}'...")
+    shutil.copytree(source, dest)
+    print("Initialization complete.")
         with open(os.path.join(cwd, ".gitignore"), "r") as f:
             lines = f.readlines()
         if "block_infos.toml\n" not in lines:
@@ -135,6 +144,9 @@ def main():
         make_block(args.block_name)
     else:
         parser.print_help()
+        
+if __name__ == "__main__":
+    main()
         
 if __name__ == "__main__":
     main()
