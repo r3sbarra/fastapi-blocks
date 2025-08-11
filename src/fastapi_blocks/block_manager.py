@@ -57,7 +57,6 @@ class BlockManager(metaclass=SingletonMeta):
     
     templates : Optional[Environment] = None
     _db_engine : Optional[Any] = None
-    _db_engine : Optional[Any] = None
     
     working_dir: str = os.getcwd()
     block_manager_folder : str = "blockmanager"
@@ -229,26 +228,6 @@ class BlockManager(metaclass=SingletonMeta):
             )
             
         if not self.block_manager_info:
-            if "blocks" not in self.block_manager_info.keys():
-                self.block_manager_info["blocks"] = {}
-            if "installs" not in self.block_manager_info.keys():
-                self.block_manager_info["installs"] = []
-            if "extra_block_settings" not in self.block_manager_info.keys():
-                self.block_manager_info["extra_block_settings"] = []
-            if "templates_dir" not in self.block_manager_info.keys():
-                self.block_manager_info["templates_dir"] = []
-            if "statics" not in self.block_manager_info.keys():
-                self.block_manager_info["statics"] = []
-                
-            if "hooks" not in self.block_manager_info.keys():
-                self.block_manager_info["hooks"] = {
-                    "_start_hooks" : {},
-                    "_block_preload_hooks" : {},
-                    "_block_postload_hooks" : {}
-                }
-                
-            if "settings" not in self.block_manager_info.keys():
-                self.block_manager_info["settings"] = {}
             if "blocks" not in self.block_manager_info.keys():
                 self.block_manager_info["blocks"] = {}
             if "installs" not in self.block_manager_info.keys():
@@ -603,8 +582,6 @@ class BlockManager(metaclass=SingletonMeta):
         toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
         
         if not os.path.exists(toml_path):
-            self.logger.warning("No block_infos.toml found. Please run setup first")
-            raise Exception("No block_infos.toml found. Please run setup first")
             self.logger.warning("No block_infos.toml found. Please run setup first")
             raise Exception("No block_infos.toml found. Please run setup first")
         else:
