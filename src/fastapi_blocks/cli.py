@@ -5,7 +5,11 @@ from typing import Union
 from pathlib import Path
 import importlib
 
-def setup(folder : Union[str, None] = None, auto_install : bool = False, save_hashes_flag: bool = False, verify_blocks_flag: bool = False):
+def setup(folder : Union[str, None] = None, 
+          auto_install : bool = False, 
+          save_hashes_flag: bool = False, 
+          verify_blocks_flag: bool = False
+    ):
     """
     Run setup
     """
@@ -17,14 +21,14 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False, save_ha
         os.mkdir(os.path.join(cwd, folder))
     
     manager = BlockManager(blocks_folder=folder)
-    if manager._setup(save_mako=True):
+    if manager._setup(run_hooks=True):
         print(f"Setup complete. Folder: {folder}")
     else:
         with open(os.path.join(cwd, ".gitignore"), "r") as f:
             lines = f.readlines()
-        if "block_infos.toml\n" not in lines:
+        if "blockmanager/\n" not in lines:
             with open(os.path.join(cwd, ".gitignore"), "a") as f:
-                f.write("block_infos.toml\n")
+                f.write("\nblockmanager/\n")
                 
     print("setup complete")
 
@@ -139,7 +143,7 @@ def main():
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
-        setup(args.folder_path)
+        setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
     else:
         parser.print_help()
         
