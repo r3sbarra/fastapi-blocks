@@ -131,6 +131,16 @@ class BlockManager(metaclass=SingletonMeta):
         # Import from toml
         for block_name, block_info in sorted_blocks:
             
+            # Verify block hash
+            block_path = block_info.get('block_path', None)
+            self.logger.info("Verifying hash for %s", block_path)
+            if not self._verify_block_hash(block_path):
+                message = (f"Block hash mismatch for @ '{block_path}'. " \
+                                "Block might have been tampered with or changed. " \
+                                "Please run `python -m fastapi_blocks setup --save-hashes` to update the hash.")
+                self.logger.warning(message)
+                os._exit(0)
+            
             self.logger.info("Prepping: %s", block_name)
             
             try:
@@ -335,9 +345,6 @@ class BlockManager(metaclass=SingletonMeta):
         
         requires_restart = False
         
-        # Verify block hash
-        self._verify_block_hash(block_path)
-
         # Load Settings
         with open(config_path, 'r') as f:
             block_config = toml.load(f)
