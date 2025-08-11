@@ -71,10 +71,10 @@ class BlockManager(metaclass=SingletonMeta):
     logger: logging.Logger = logging.getLogger(__name__)
     
     # hooks
-    _setup_hooks : List = []            # Runs on setup
-    _start_hooks : List = []            # Runs right after loading block infos
-    _block_preload_hooks : List = []    # Runs before each block info is loaded
-    _block_postload_hooks : List = []   # Runs after each block info is loaded
+    _hooks_setup : List = []            # Runs on setup
+    _hooks_start : List = []            # Runs right after loading block infos
+    _hooks_block_preload : List = []    # Runs before each block info is loaded
+    _hooks_block_postload : List = []   # Runs after each block info is loaded
     
     def __init__(self, 
             *args,
@@ -103,13 +103,13 @@ class BlockManager(metaclass=SingletonMeta):
         """
         
         # Load Hooks
-        self._start_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_start_hooks", {}))
-        self._block_preload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_preload_hooks", {}))
-        self._block_postload_hooks = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_postload_hooks", {}))
+        self._hooks_start = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_start_hooks", {}))
+        self._hooks_block_preload = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_preload_hooks", {}))
+        self._hooks_block_postload = self._resolve_hooks(self.block_manager_info.get("hooks", {}).get("_block_postload_hooks", {}))
         
         # Run start hooks
         # .ie Schemas should be loaded in DB via this one
-        self._run_hooks(self._start_hooks, blocks_infos=self.block_manager_info.get("blocks", {}))
+        self._run_hooks(self._hooks_start, blocks_infos=self.block_manager_info.get("blocks", {}))
         
         # Attach to app
         app_instance.block_manager = self
@@ -135,7 +135,7 @@ class BlockManager(metaclass=SingletonMeta):
             
             try:
                 # Run preload hooks
-                self._run_hooks(self._block_preload_hooks, block_info=block_info)
+                self._run_hooks(self._hooks_block_preload, block_info=block_info)
                         
                 # Mount statics
                 if block_info.get('statics', None) and os.path.exists(block_info['statics']):
@@ -162,7 +162,7 @@ class BlockManager(metaclass=SingletonMeta):
                         self.logger.info("Mounted API router: %s", block_info['api_router'])
                         
                 # Run postload hooks
-                self._run_hooks(self._block_postload_hooks, block_info=block_info)
+                self._run_hooks(self._hooks_block_postload, block_info=block_info)
                 
             except Exception as e:
                 self.logger.exception("Failed to import block %s: %s", block_name, e)
@@ -236,7 +236,7 @@ class BlockManager(metaclass=SingletonMeta):
         self._save_settings_toml()
         
         if run_hooks:
-            self._run_hooks(self._setup_hooks)
+            self._run_hooks(self._hooks_setup)
         
         return has_changes
     
