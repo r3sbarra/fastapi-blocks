@@ -67,7 +67,6 @@ class BlockManager(metaclass=SingletonMeta):
     override_duplicate_block : bool = False
     allow_installs : bool = False
     verify_blocks: bool = False             # Set to true in production
-    late_setup : bool = False
     
     logger: logging.Logger = None
     
@@ -91,10 +90,6 @@ class BlockManager(metaclass=SingletonMeta):
         
         # block manager toml
         if not late_load:
-            self._load_settings_toml()
-            
-        # block manager toml
-        if not self.late_setup:
             self._load_settings_toml()
         
         self.logger.info("BlockManager initialized.")
