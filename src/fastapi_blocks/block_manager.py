@@ -85,12 +85,12 @@ class BlockManager(metaclass=SingletonMeta):
         for key, value in kwargs.items():
             setattr(self, key, value)
         
+        if not self.logger:
+            self.logger = logging.getLogger("uvicorn") or logging.getLogger(__name__)
+        
         # block manager toml
         if not late_load:
             self._load_settings_toml()
-            
-        if not self.logger:
-            self.logger = logging.getLogger("uvicorn")
             
         self.logger.info("BlockManager initialized.")
         
