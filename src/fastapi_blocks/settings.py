@@ -52,6 +52,7 @@ class BlockSettingsBase(BaseSettings):
         """
         return self.model_dump()
         
+    def _setup_hooks(self) -> List: return []
     def _start_hooks(self) -> List: return []
     def _preload_hooks(self) -> List: return []
     def _postload_hooks(self) -> List: return []
@@ -87,6 +88,7 @@ class BlockSettingsMixin(BaseSettings):
     
     model_config = SettingsConfigDict(arbitrary_types_allowed=True)
     
+    def _setup_hooks(self) -> List: return super()._start_hooks() or []
     def _start_hooks(self) -> List: return super()._start_hooks() or []
     def _postload_hooks(self) -> List: return super()._postload_hooks() or [] 
     def _preload_hooks(self) -> List: return super()._preload_hooks() or []

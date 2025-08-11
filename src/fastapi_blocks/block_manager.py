@@ -71,6 +71,7 @@ class BlockManager(metaclass=SingletonMeta):
     logger: logging.Logger = logging.getLogger(__name__)
     
     # hooks
+    _setup_hooks : List = []            # Runs on setup
     _start_hooks : List = []            # Runs right after loading block infos
     _block_preload_hooks : List = []    # Runs before each block info is loaded
     _block_postload_hooks : List = []   # Runs after each block info is loaded
@@ -194,7 +195,7 @@ class BlockManager(metaclass=SingletonMeta):
     
         return DynamicBlockSettings
     
-    def _setup(self) -> bool:
+    def _setup(self, run_hooks : bool = True) -> bool:
         """
         Sets up the BlockManager.
         """
@@ -233,6 +234,9 @@ class BlockManager(metaclass=SingletonMeta):
         has_changes = self._setup_hooks() or has_changes
         
         self._save_settings_toml()
+        
+        if run_hooks:
+            self._run_hooks(self._setup_hooks)
         
         return has_changes
     
@@ -424,10 +428,12 @@ class BlockManager(metaclass=SingletonMeta):
                         block_settings = dynamic_block_class(**block_settings_data, block_path=item.path)
                         
                         # Hooks
+                        block_hooks_setup = block_settings._setup_hooks()
                         block_hooks_start = block_settings._start_hooks()
                         block_hooks_preload = block_settings._preload_hooks()
                         block_hooks_postload = block_settings._postload_hooks()
                         
+                        requires_restart = self._attach_hook("_setup_hooks", block_hooks_setup) or requires_restart
                         requires_restart = self._attach_hook("_start_hooks", block_hooks_start) or requires_restart
                         requires_restart = self._attach_hook("_block_preload_hooks", block_hooks_preload) or requires_restart
                         requires_restart = self._attach_hook("_block_postload_hooks", block_hooks_postload) or requires_restart
@@ -519,6 +525,7 @@ class BlockManager(metaclass=SingletonMeta):
         schemas_flattened = [item for sublist in schemas for item in sublist]
         return schemas_flattened
     
+    # DB retrieval funcs
     async def get_db_engine_async(self) -> Any:
         """
         Gets the database engine for the blocks.
