@@ -109,7 +109,7 @@ def main():
     parser_setup.add_argument("--folder", "-f", type=str, default=None, help="The folder path where the blocks are stored")
     parser_setup.add_argument("--auto-install", "-A", action="store_true", help="Automatically install missing dependencies", default=False)
     parser_setup.add_argument("--save-hashes", "-S", action="store_true", help="Save current block hashes after setup.", default=False)
-    parser_setup.add_argument("--verify-blocks", "-V", action="store_true", help="Enable hash-based block verification.", default=False)
+    parser_setup.add_argument("--verify-blocks", "-V", action="store_false", help="Enable hash-based block verification.", default=True)
 
     # Create command
     parser_create = subparsers.add_parser("create", help="Creates a new block.")
