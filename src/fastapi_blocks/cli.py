@@ -17,10 +17,25 @@ def setup(folder : Union[str, None] = None,
     
     cwd = os.getcwd()
     
-    if not os.path.exists(os.path.join(cwd, folder)):
-        os.mkdir(os.path.join(cwd, folder))
+    if folder:
+        if not os.path.exists(os.path.join(cwd, folder)):
+            os.mkdir(os.path.join(cwd, folder))
     
-    manager = BlockManager(blocks_folder=folder)
+        manager = BlockManager(
+            blocks_folder=folder, 
+            late_load=True, 
+            allow_installs=auto_install, 
+            save_hashes=save_hashes_flag, 
+            verify_blocks=verify_blocks_flag
+        )
+    else:
+        manager = BlockManager(
+            blocks_folder=folder,
+            allow_installs=auto_install, 
+            save_hashes=save_hashes_flag, 
+            verify_blocks=verify_blocks_flag
+        )
+    
     if manager._setup(run_hooks=True):
         print(f"Setup complete. Folder: {folder}")
     else:
