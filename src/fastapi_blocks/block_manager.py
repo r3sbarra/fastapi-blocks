@@ -68,7 +68,7 @@ class BlockManager(metaclass=SingletonMeta):
     allow_installs : bool = False
     verify_blocks: bool = False             # Set to true in production
     
-    logger: logging.Logger = logging.getLogger(__name__)
+    logger: logging.Logger = None
     
     # hooks
     _hooks_setup : List = []            # Runs on setup
@@ -88,7 +88,10 @@ class BlockManager(metaclass=SingletonMeta):
         # block manager toml
         if not late_load:
             self._load_settings_toml()
-        
+            
+        if not self.logger:
+            self.logger = logging.getLogger("uvicorn")
+            
         self.logger.info("BlockManager initialized.")
         
     def init_app(self, app_instance: 'FastAPI'):
@@ -318,6 +321,7 @@ class BlockManager(metaclass=SingletonMeta):
             return True
 
         dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
+        
         return dir_hash == hashes[block_name]
 
     def _save_block_hashes(self, block_path: str) -> None:
