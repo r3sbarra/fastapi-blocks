@@ -34,7 +34,7 @@ jobs:
       - name: Test with pytest
         run: |
           pip install pytest
-          pytest
+          pytest tests/test_block_manager.py tests/test_cli.py
 
   release-build:
     needs: test

@@ -81,31 +81,6 @@ def make_block(block_name):
     print("setup complete")
 
 
-def make_block(block_name):
-    """
-    Creates a new block.
-    """
-    from fastapi_blocks import BlockManager
-    block_manager = BlockManager()
-    block_manager._load_settings_toml()
-    
-    if not block_manager.block_manager_info:
-        print(f"Error: 'block_manager_info' is empty. Start the app at least once")
-        return
-    
-    # copy placeholder
-    source = Path(__file__).parent / "default_blocks" / "block_template"
-    dest = Path.cwd() / "blocks" / block_name
-    
-    if dest.exists():
-        print(f"Error: '{block_name}' already exists.")
-        return
-    
-    print(f"Copying 'block_template' to '{dest}'...")
-    shutil.copytree(source, dest)
-    print("Initialization complete.")
-
-
 def init_project():
     """
     Initializes a new project by copying the default homepage_block.
@@ -159,6 +134,8 @@ def main():
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
+    elif args.command == "create":
+        make_block(args.block_name)
     else:
         parser.print_help()
         
