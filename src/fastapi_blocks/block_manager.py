@@ -159,7 +159,6 @@ class BlockManager(metaclass=SingletonMeta):
                         
                 # Mount statics
                 if block_info.get('statics', None) and os.path.exists(block_info['statics']):
-                if block_info.get('statics', None) and os.path.exists(block_info['statics']):
                     app_instance.mount(
                         f"/{block_name}/static", 
                         StaticFiles(directory=block_info['statics']), 

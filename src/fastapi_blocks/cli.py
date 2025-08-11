@@ -16,7 +16,6 @@ def setup(folder : Union[str, None] = None, auto_install : bool = False, save_ha
     if not os.path.exists(os.path.join(cwd, folder)):
         os.mkdir(os.path.join(cwd, folder))
     
-    app = FastAPI()    
     manager = BlockManager(blocks_folder=folder)
     if manager._setup(save_mako=True):
         print(f"Setup complete. Folder: {folder}")
@@ -35,6 +34,7 @@ def make_block(block_name):
     Creates a new block.
     """
     from fastapi_blocks import BlockManager
+    cwd = os.getcwd()
     block_manager = BlockManager()
     block_manager._load_settings_toml()
     
@@ -53,12 +53,12 @@ def make_block(block_name):
     print(f"Copying 'block_template' to '{dest}'...")
     shutil.copytree(source, dest)
     print("Initialization complete.")
-        with open(os.path.join(cwd, ".gitignore"), "r") as f:
-            lines = f.readlines()
-        if "block_infos.toml\n" not in lines:
-            with open(os.path.join(cwd, ".gitignore"), "a") as f:
-                f.write("block_infos.toml\n")
-                
+    with open(os.path.join(cwd, ".gitignore"), "r") as f:
+        lines = f.readlines()
+    if "block_infos.toml\n" not in lines:
+        with open(os.path.join(cwd, ".gitignore"), "a") as f:
+            f.write("block_infos.toml\n")
+            
     print("setup complete")
 
 
@@ -139,14 +139,9 @@ def main():
     elif args.command == "hello":
         print(f"Hello, {args.name}!")
     elif args.command == "setup":
-        setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
-    elif args.command == "create":
-        make_block(args.block_name)
+        setup(args.folder_path)
     else:
         parser.print_help()
-        
-if __name__ == "__main__":
-    main()
         
 if __name__ == "__main__":
     main()
