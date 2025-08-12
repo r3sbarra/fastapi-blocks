@@ -137,13 +137,15 @@ class BlockManager(metaclass=SingletonMeta):
             
             # Verify block hash
             block_path = block_info.get('block_path', None)
-            self.logger.info("Verifying hash for %s", block_path)
-            if not self._verify_block_hash(block_path):
-                message = (f"Block hash mismatch for @ '{block_path}'. " \
-                                "Block might have been tampered with or changed. " \
-                                "Please run `python -m fastapi_blocks setup --save-hashes` to update the hash.")
-                self.logger.warning(message)
-                os._exit(0)
+            
+            if self.verify_blocks:
+                self.logger.info("Verifying hash for %s", block_path)
+                if not self._verify_block_hash(block_path):
+                    message = (f"Block hash mismatch for @ '{block_path}'. " \
+                                    "Block might have been tampered with or changed. " \
+                                    "Please run `python -m fastapi_blocks setup --save-hashes` to update the hash.")
+                    self.logger.warning(message)
+                    os._exit(0)
             
             self.logger.info("Prepping: %s", block_name)
             
@@ -209,7 +211,7 @@ class BlockManager(metaclass=SingletonMeta):
     
         return DynamicBlockSettings
     
-    def _setup(self, run_hooks : bool = True) -> bool:
+    def _setup(self, run_hooks : bool = True, save_hashes : bool = False) -> bool:
         """
         Sets up the BlockManager.
         """
@@ -244,7 +246,7 @@ class BlockManager(metaclass=SingletonMeta):
             if "settings" not in self.block_manager_info.keys():
                 self.block_manager_info["settings"] = {}
         
-        has_changes = self._setup_blocks()
+        has_changes = self._setup_blocks(save_hashes=save_hashes)
         has_changes = self._setup_hooks() or has_changes
         
         self._save_settings_toml()
@@ -254,7 +256,7 @@ class BlockManager(metaclass=SingletonMeta):
         
         return has_changes
     
-    def _setup_blocks(self) -> bool:
+    def _setup_blocks(self, save_hashes : bool = False) -> bool:
         """
         Sets up the BlockManager by discovering blocks and installing their dependencies.
 
@@ -276,6 +278,9 @@ class BlockManager(metaclass=SingletonMeta):
                         
                         new_installs = self._load_block_config(item.path, block_config_path, settings_class=dynamic_block_class)
                         HAS_INSTALLS = HAS_INSTALLS or new_installs
+                        
+                        if save_hashes:
+                            self._save_block_hashes(item.path)
                         
                 except Exception as e:
                     if not self.allow_block_import_failure:
