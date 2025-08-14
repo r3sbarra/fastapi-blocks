@@ -39,7 +39,7 @@ def setup(folder : Union[str, None] = None,
     else:
         with open(os.path.join(cwd, ".gitignore"), "r") as f:
             lines = f.readlines()
-        if "blockmanager/\n" not in lines:
+        if "blockmanager/" not in lines:
             with open(os.path.join(cwd, ".gitignore"), "a") as f:
                 f.write("\nblockmanager/\n")
 
