@@ -118,16 +118,10 @@ def main():
     parser_verify = subparsers.add_parser("verify", help="Enables or disables block verification.")
     parser_verify.add_argument("status", type=str, choices=['on', 'off'], help="The status of block verification.")
 
-    # Example command
-    parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
-    parser_hello.add_argument("name", type=str, help="The name to say hello to.")
-
     args = parser.parse_args()
 
     if args.command == "init":
         init_project()
-    elif args.command == "hello":
-        print(f"Hello, {args.name}!")
     elif args.command == "setup":
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
     elif args.command == "create":
