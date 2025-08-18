@@ -29,19 +29,18 @@ def setup(folder : Union[str, None] = None,
         )
     else:
         manager = BlockManager(
-            blocks_folder=folder,
             allow_installs=auto_install, 
             verify_blocks=verify_blocks_flag
         )
     
-    if manager._setup(run_hooks=True, save_hashes=save_hashes_flag):
-        print(f"Setup complete. Folder: {manager.blocks_folder}\n")
-    else:
+    if not manager._setup(run_hooks=True, save_hashes=save_hashes_flag):
+        # If hasn't been setup before, add to gitignore.
         with open(os.path.join(cwd, ".gitignore"), "r") as f:
             lines = f.read()
         if "blockmanager/" not in lines:
             with open(os.path.join(cwd, ".gitignore"), "a") as f:
                 f.write("\nblockmanager/\n")
+    print(f"Setup complete. Folder: {manager.blocks_folder}\n")
 
 
 def make_block(block_name):
