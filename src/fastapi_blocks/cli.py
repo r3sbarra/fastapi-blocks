@@ -38,7 +38,7 @@ def setup(folder : Union[str, None] = None,
         print(f"Setup complete. Folder: {manager.blocks_folder}\n")
     else:
         with open(os.path.join(cwd, ".gitignore"), "r") as f:
-            lines = f.readlines()
+            lines = f.read()
         if "blockmanager/" not in lines:
             with open(os.path.join(cwd, ".gitignore"), "a") as f:
                 f.write("\nblockmanager/\n")
