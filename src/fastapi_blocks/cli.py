@@ -69,7 +69,12 @@ def make_block(block_name : str, run_setup : bool):
     # Get extra settings from blockmanager
     extra_settings_class = block_manager._build_block_settings_class()
     
-    temp_class = extra_settings_class(name=block_name, version="0.1")
+    temp_class = extra_settings_class(
+        name=block_name, 
+        version="0.1",
+        template_router="router",
+        api_router="api_router",
+    )
     extra_settings_dict = temp_class.get_dict()
     
     # copy placeholder
