@@ -71,11 +71,12 @@ def make_block(block_name : str, run_setup : bool):
     
     temp_class = extra_settings_class(
         name=block_name, 
-        version="0.1",
-        template_router="router",
-        api_router="api_router",
+        version="0.1"
     )
     extra_settings_dict = temp_class.get_dict()
+    extra_settings_dict["router"] = "router"
+    extra_settings_dict["api_router"] = "api_router"
+    extra_settings_dict["extra_block_settings"] = "settings"
     
     # copy placeholder
     source = Path(__file__).parent / "default_blocks" / "block_template"
