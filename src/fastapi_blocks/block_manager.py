@@ -15,7 +15,8 @@ from dirhash import dirhash
 
 import logging
 import importlib
-import toml
+import tomllib
+import tomli_w
 import subprocess
 import sys
 import inspect
@@ -357,8 +358,8 @@ class BlockManager(metaclass=SingletonMeta):
         requires_restart = False
         
         # Load Settings
-        with open(config_path, 'r') as f:
-            block_config = toml.load(f)
+        with open(config_path, 'rb') as f:
+            block_config = tomllib.load(f)
             
         # Extract the 'block' section if it exists, otherwise use the whole config
         block_settings_data = block_config.get('block', block_config)
@@ -437,8 +438,8 @@ class BlockManager(metaclass=SingletonMeta):
                     # Look for folders with block_config.toml
                     if item.is_dir() and block_config_path.exists():
                         # Load Settings
-                        with open(block_config_path, 'r') as f:
-                            block_config = toml.load(f)
+                        with open(block_config_path, 'rb') as f:
+                            block_config = tomllib.load(f)
                             
                         # Extract the 'block' section if it exists, otherwise use the whole config
                         block_settings_data = block_config.get('block', block_config)
@@ -586,8 +587,8 @@ class BlockManager(metaclass=SingletonMeta):
             self.logger.warning("No block_infos.toml found. Please run setup first")
             raise Exception("No block_infos.toml found. Please run setup first")
         else:
-            with open(toml_path, 'r') as f:
-                self.block_manager_info = toml.load(f)
+            with open(toml_path, 'rb') as f:
+                self.block_manager_info = tomllib.load(f)
                 
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
                 self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
@@ -609,5 +610,5 @@ class BlockManager(metaclass=SingletonMeta):
         
         # save toml 
         toml_path = block_manager_path / 'block_infos.toml'
-        with open(toml_path, 'w') as f:
-            toml.dump(self.block_manager_info, f)
+        with open(toml_path, 'wb') as f:
+            tomli_w.dump(self.block_manager_info, f)
