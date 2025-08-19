@@ -1,4 +1,4 @@
-from pydantic import field_serializer
+from pydantic import field_serializer, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List, Dict, Union
 from pathlib import Path
@@ -22,7 +22,7 @@ class BlockSettingsBase(BaseSettings):
         load_order (int): The load order of the block.
         block_path (str): The path to the block.
     """
-    name : str
+    name : str = Field(..., min_length=3, max_length=32, description="The name of the block.")
     version : str
     block_path : Path
     requirements : List[str] = []
@@ -56,6 +56,15 @@ class BlockSettingsBase(BaseSettings):
     def _start_hooks(self) -> List: return []
     def _preload_hooks(self) -> List: return []
     def _postload_hooks(self) -> List: return []
+    
+    @field_validator('name')
+    def validate_name(value: str):
+        
+        # verify alphanumeric, only allow underscore
+        if not value.replace('_', '').isalnum():
+            raise ValueError('Name must be alphanumeric and can contain underscores.')
+            
+        return value
     
     @field_serializer('statics', 'templates_dir')
     def serialize_to_path(self, value: str):
