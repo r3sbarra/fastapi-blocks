@@ -191,7 +191,7 @@ class BlockManager(metaclass=SingletonMeta):
         
         return app_instance
     
-    def _build_block_settings_class(self,) -> BlockSettingsBase:
+    def _build_block_settings_class(self) -> BlockSettingsBase:
         # Build settings class
         extra_settings_classes = []
         if self.block_manager_info["extra_block_settings"]:
