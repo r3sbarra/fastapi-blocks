@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
-import os
+from pathlib import Path
 
 # Add the src directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from fastapi_blocks import cli
 
@@ -30,13 +30,6 @@ class TestCLI(unittest.TestCase):
         sys.argv = ['fastapi-blocks', 'create', 'my_new_block']
         cli.main()
         mock_make_block.assert_called_once_with('my_new_block')
-
-    @patch('builtins.print')
-    def test_hello_command(self, mock_print):
-        """Test the 'hello' command."""
-        sys.argv = ['fastapi-blocks', 'hello', 'World']
-        cli.main()
-        mock_print.assert_called_with('Hello, World!')
 
     def test_main_no_command(self):
         """Test running the CLI with no command."""

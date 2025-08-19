@@ -1,7 +1,7 @@
 from pydantic import field_serializer
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List, Dict, Union
-import os
+from pathlib import Path
 
 from .utils import path_to_module
 
@@ -24,7 +24,7 @@ class BlockSettingsBase(BaseSettings):
     """
     name : str
     version : str
-    block_path : str
+    block_path : Path
     requirements : List[str] = []
     dependancies : List[str] = []
     statics : Optional[str] = None
@@ -60,20 +60,20 @@ class BlockSettingsBase(BaseSettings):
     @field_serializer('statics', 'templates_dir')
     def serialize_to_path(self, value: str):
         if value:
-            return os.path.join(self.block_path, value)
+            return str(self.block_path / value)
         return None
         
     @field_serializer('template_router', 'api_router', 'extra_block_settings')
     def serialize_path_to_fields(self, value: str) -> Union[str, None]:
         if not value:
             return None
-        return path_to_module(os.path.join(self.block_path, value))
+        return path_to_module(self.block_path / value)
     
     @field_serializer('schemas')
     def serialize_schemas(self, value: List[str]) -> Union[List[str], None]:
         if not value:
             return None
-        return [path_to_module(os.path.join(self.block_path, v)) for v in value]
+        return [path_to_module(self.block_path / v) for v in value]
     
 class BlockSettingsMixin(BaseSettings):
     """
@@ -84,7 +84,7 @@ class BlockSettingsMixin(BaseSettings):
     
     Then you can access that data with hooks to perform some action.
     """
-    block_path : Optional[str] = None
+    block_path : Optional[Path] = None
     
     model_config = SettingsConfigDict(arbitrary_types_allowed=True)
     

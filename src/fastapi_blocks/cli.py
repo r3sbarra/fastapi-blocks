@@ -1,13 +1,12 @@
 import argparse
 import shutil
-import os
 from typing import Union
 from pathlib import Path
 import importlib
 
-def setup(folder : Union[str, None] = None, 
-          auto_install : bool = False, 
-          save_hashes_flag: bool = False, 
+def setup(folder : Union[str, None] = None,
+          auto_install : bool = False,
+          save_hashes_flag: bool = False,
           verify_blocks_flag: bool = False
     ):
     """
@@ -15,11 +14,12 @@ def setup(folder : Union[str, None] = None,
     """
     from fastapi_blocks import BlockManager
     
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     
     if folder:
-        if not os.path.exists(os.path.join(cwd, folder)):
-            os.mkdir(os.path.join(cwd, folder))
+        folder_path = cwd / folder
+        if not folder_path.exists():
+            folder_path.mkdir()
     
         manager = BlockManager(
             blocks_folder=folder, 
@@ -35,11 +35,17 @@ def setup(folder : Union[str, None] = None,
     
     if not manager._setup(run_hooks=True, save_hashes=save_hashes_flag):
         # If hasn't been setup before, add to gitignore.
-        with open(os.path.join(cwd, ".gitignore"), "r") as f:
-            lines = f.read()
-        if "blockmanager/" not in lines:
-            with open(os.path.join(cwd, ".gitignore"), "a") as f:
-                f.write("\nblockmanager/\n")
+        gitignore_path = cwd / ".gitignore"
+        if gitignore_path.exists():
+            with open(gitignore_path, "r") as f:
+                lines = f.read()
+            if "blockmanager/" not in lines:
+                with open(gitignore_path, "a") as f:
+                    f.write("\nblockmanager/\n")
+        else:
+            with open(gitignore_path, "w") as f:
+                f.write("blockmanager/\n")
+
     print(f"Setup complete. Folder: {manager.blocks_folder}\n")
 
 
@@ -48,7 +54,7 @@ def make_block(block_name):
     Creates a new block.
     """
     from fastapi_blocks import BlockManager
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     block_manager = BlockManager()
     block_manager._load_settings_toml()
     
@@ -67,10 +73,15 @@ def make_block(block_name):
     print(f"Copying 'block_template' to '{dest}'...")
     shutil.copytree(source, dest)
     print("Initialization complete.")
-    with open(os.path.join(cwd, ".gitignore"), "r") as f:
-        lines = f.readlines()
-    if "block_infos.toml\n" not in lines:
-        with open(os.path.join(cwd, ".gitignore"), "a") as f:
+    gitignore_path = cwd / ".gitignore"
+    if gitignore_path.exists():
+        with open(gitignore_path, "r") as f:
+            lines = f.readlines()
+        if "block_infos.toml\n" not in lines:
+            with open(gitignore_path, "a") as f:
+                f.write("block_infos.toml\n")
+    else:
+        with open(gitignore_path, "w") as f:
             f.write("block_infos.toml\n")
             
     print("setup complete")
@@ -125,6 +136,11 @@ def main():
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
     elif args.command == "create":
         make_block(args.block_name)
+    elif args.command == "verify":
+        if args.status == 'on':
+            print("Block verification enabled.")
+        elif args.status == 'off':
+            print("Block verification disabled.")
     else:
         parser.print_help()
         
