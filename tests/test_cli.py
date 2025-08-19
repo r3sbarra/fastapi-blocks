@@ -29,7 +29,7 @@ class TestCLI(unittest.TestCase):
         """Test the 'create' command."""
         sys.argv = ['fastapi-blocks', 'create', 'my_new_block']
         cli.main()
-        mock_make_block.assert_called_once_with('my_new_block')
+        mock_make_block.assert_called_once_with('my_new_block', False)
 
     def test_main_no_command(self):
         """Test running the CLI with no command."""
