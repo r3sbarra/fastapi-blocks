@@ -1,3 +1,4 @@
+[block]
 name = "give_me_some_name"
 statics = "statics"
 version = "0.1"

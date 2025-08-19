@@ -1,3 +1,4 @@
+[block]
 name = "Example Block"
 statics = "statics"
 version = "0.1"
