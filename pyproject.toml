@@ -19,7 +19,7 @@ dependencies = [
     "fastapi",
     "pydantic",
     "pydantic-settings",
-    "toml",
+    "tomli-w",
     "jinja2",
     "dirhash"
 ]
