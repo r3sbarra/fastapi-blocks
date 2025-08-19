@@ -69,9 +69,8 @@ def make_block(block_name : str, run_setup : bool):
     # Get extra settings from blockmanager
     extra_settings_class = block_manager._build_block_settings_class()
     
-    temp_class = extra_settings_class(name=block_name, version="0.1", requirements=[])
+    temp_class = extra_settings_class(name=block_name, version="0.1")
     extra_settings_dict = temp_class.get_dict()
-    print(f"Extra settings: {extra_settings_dict}")
     
     # copy placeholder
     source = Path(__file__).parent / "default_blocks" / "block_template"
@@ -86,16 +85,11 @@ def make_block(block_name : str, run_setup : bool):
     print("Initialization complete.")
     
     # Make toml
-    toml_jinja_temp = Path(__file__).parent / "templates"/ "block_config.toml.j2"
     toml_path = dest / "block_config.toml"
+    import tomli_w
     
-    from jinja2 import Environment, FileSystemLoader
-    env = Environment(loader=FileSystemLoader(str(toml_jinja_temp.parent)))
-    template = env.get_template(str(toml_jinja_temp.name))
-    output = template.render({"block_name": block_name})
-    
-    with open(toml_path, "w") as f:
-        f.write(output)
+    with open(toml_path, "wb") as f:
+        tomli_w.dump(extra_settings_dict, f)
         
     # gitignore
     
