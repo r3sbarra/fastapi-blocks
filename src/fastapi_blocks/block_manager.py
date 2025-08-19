@@ -322,7 +322,7 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             hashes = {}
 
-        block_name = block_path
+        block_name = Path(block_path).name
         if block_name not in hashes:
             hashes[block_name] = {}
             return True

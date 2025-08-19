@@ -83,8 +83,21 @@ def make_block(block_name : str, run_setup : bool):
     
     print(f"Copying 'block_template' to '{dest}'...")
     shutil.copytree(source, dest)
-    
     print("Initialization complete.")
+    
+    # Make toml
+    toml_jinja_temp = Path(__file__).parent / "templates"/ "block_config.toml.j2"
+    toml_path = dest / "block_config.toml"
+    
+    from jinja2 import Environment, FileSystemLoader
+    env = Environment(loader=FileSystemLoader(str(toml_jinja_temp.parent)))
+    template = env.get_template(str(toml_jinja_temp.name))
+    output = template.render({"block_name": block_name})
+    
+    with open(toml_path, "w") as f:
+        f.write(output)
+        
+    # gitignore
     
     gitignore_path = cwd / ".gitignore"
     if gitignore_path.exists():
