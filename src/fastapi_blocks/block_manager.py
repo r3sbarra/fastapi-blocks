@@ -21,6 +21,7 @@ import sys
 import inspect
 import threading
 import json
+import os
 
 class SingletonMeta(type):
     _instances = {}
