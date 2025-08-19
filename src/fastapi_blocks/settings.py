@@ -50,7 +50,7 @@ class BlockSettingsBase(BaseSettings):
         Returns:
             Dict: A dictionary representation of the block settings.
         """
-        return self.model_dump()
+        return self.model_dump(exclude_none=True)
         
     def _setup_hooks(self) -> List: return []
     def _start_hooks(self) -> List: return []
@@ -83,6 +83,10 @@ class BlockSettingsBase(BaseSettings):
         if not value:
             return None
         return [path_to_module(self.block_path / v) for v in value]
+    
+    @field_serializer('block_path')
+    def serialize_block_path(self, value: Path) -> str:
+        return str(value)
     
 class BlockSettingsMixin(BaseSettings):
     """

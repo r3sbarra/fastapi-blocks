@@ -384,7 +384,7 @@ class BlockManager(metaclass=SingletonMeta):
                     self.block_manager_info["blocks"][block_settings.name][key] = items
             
         # Check if extra block settings in settings, else require restart
-        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
+        if 'extra_block_settings' in block_info_dict.keys() and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
             self.block_manager_info["extra_block_settings"].append(block_info_dict['extra_block_settings'])
             requires_restart = True
         
@@ -410,7 +410,7 @@ class BlockManager(metaclass=SingletonMeta):
                         )
                         
         # Templates dir
-        if block_info_dict['templates_dir'] and block_info_dict['templates_dir'] not in self.block_manager_info["templates_dir"]:
+        if 'templates_dir' in block_info_dict.keys() and block_info_dict['templates_dir'] not in self.block_manager_info["templates_dir"]:
             self.block_manager_info["templates_dir"].append(block_info_dict['templates_dir'])
             requires_restart = True
                 
