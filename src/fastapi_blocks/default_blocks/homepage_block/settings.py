@@ -9,7 +9,6 @@ def _say_hi(*args, **kwargs):
         print("Hi")
     
 class Settings(BlockSettingsMixin):
-    is_main : Optional[bool] = None
 
     def _start_hooks(self) -> List:
         return super()._start_hooks() + [_say_hi]

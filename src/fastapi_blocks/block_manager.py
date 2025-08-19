@@ -122,7 +122,6 @@ class BlockManager(metaclass=SingletonMeta):
         # Use app logger if exists
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
-        
         # Setup Templates
         if not self.templates and "templates_dir" in self.block_manager_info.keys() and self.block_manager_info["templates_dir"] != "":
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
@@ -308,7 +307,7 @@ class BlockManager(metaclass=SingletonMeta):
         return None
     
         
-    def _verify_block_hash(self, block_path: Path) -> bool:
+    def _verify_block_hash(self, block_path: str) -> bool:
         """
         Verifies the hash of the block files.
         """
@@ -323,7 +322,7 @@ class BlockManager(metaclass=SingletonMeta):
         else:
             hashes = {}
 
-        block_name = block_path.name
+        block_name = block_path
         if block_name not in hashes:
             hashes[block_name] = {}
             return True
