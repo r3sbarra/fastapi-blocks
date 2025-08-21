@@ -74,7 +74,7 @@ def make_block(block_name : str, run_setup : bool):
         version="0.1"
     )
     extra_settings_dict = temp_class.get_dict()
-    extra_settings_dict["router"] = "router"
+    extra_settings_dict["template_router"] = "router"
     extra_settings_dict["api_router"] = "api_router"
     extra_settings_dict["extra_block_settings"] = "settings"
     
