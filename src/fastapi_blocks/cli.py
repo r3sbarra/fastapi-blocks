@@ -156,10 +156,6 @@ def main():
     parser_create.add_argument("block_name", type=str, help="The name of the block to create.")
     parser_create.add_argument("--setup", "-S", action="store_true", help="Run setup", default=False)
 
-    # Verify command
-    parser_verify = subparsers.add_parser("verify", help="Enables or disables block verification.")
-    parser_verify.add_argument("status", type=str, choices=['on', 'off'], help="The status of block verification.")
-
     args = parser.parse_args()
 
     if args.command == "init":
@@ -168,11 +164,6 @@ def main():
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
     elif args.command == "create":
         make_block(args.block_name, args.setup)
-    elif args.command == "verify":
-        if args.status == 'on':
-            print("Block verification enabled.")
-        elif args.status == 'off':
-            print("Block verification disabled.")
     else:
         parser.print_help()
         
