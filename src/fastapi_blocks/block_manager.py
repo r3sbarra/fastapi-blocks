@@ -1,5 +1,5 @@
 from types import ModuleType
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import SettingsConfigDict, BaseSettings
 from typing import Optional, List, Any, Dict
 from pathlib import Path
 
@@ -58,7 +58,9 @@ class BlockManager(metaclass=SingletonMeta):
     api_router: APIRouter = APIRouter(prefix='/api')
     
     templates : Optional[Environment] = None
+    templates_globals : Dict = {}
     _db_engine : Optional[Any] = None
+    _app_config : Optional[BaseSettings] = None
     
     working_dir: Path = Path.cwd()
     block_manager_folder : str = "blockmanager"
@@ -125,6 +127,9 @@ class BlockManager(metaclass=SingletonMeta):
         # Setup Templates
         if not self.templates and "templates_dir" in self.block_manager_info.keys() and self.block_manager_info["templates_dir"] != "":
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
+            for key, value in self.templates_globals.items():
+                jinja2env.globals[key] = value
+            
             self.templates = Jinja2Templates(env=jinja2env)
             
         if not "blocks" in self.block_manager_info.keys():
@@ -573,6 +578,18 @@ class BlockManager(metaclass=SingletonMeta):
             return False
         self._db_engine = engine
         return True
+    
+    # App settings
+    @property
+    def app_config(self):
+        if self._app_config is None:
+            raise Exception("No app config found")
+        return self._app_config
+    
+    @app_config.setter
+    def app_config(self, value):
+        self._app_config = value
+        
 
     # Settings 
     def _load_settings_toml(self):
