@@ -47,6 +47,33 @@ Additional flags:
 ### Template names
 - 
 
+## How to
+
+### Register Jinja funcs for shared templates
+In order to allow other blocks to access functions via jinja, you would need to add the functions via hook into `BlockManager().templates_globals`, the key being the name of the function to call from jinja, and the value being the function itself.
+
+eg.
+```python
+def register_jinja_funcs(**kwargs):
+    from fastapi_blocks import BlockManager
+    BlockManager().templates_globals['has_role'] = has_role
+
+class Settings(BlockSettingsMixin):
+    
+    additional_user_roles : Optional[List[str]] = Field(description="Additional user roles to add", default=None)
+
+    def _start_hooks(self) -> List:
+        return super()._start_hooks() + [register_jinja_funcs]
+```
+
+Then, make sure that the block_config.toml has an entry for `extra_block_settings` with the name of the python file as value. .ie for 'settings.py', it would be settings.
+
+Once that is done, you will need to run setup so that the blockmanager toml is updated.
+
+In some other block, you would then be able to call the function from jinja as long as it is using `templates` from BlockManager.
+
+If you want to use jinja within a blocks jinja2env, you'd have to get the template_globals from blockmanager then add them to the jinja2env's globals.
+
 ## Todo:
 
 - [ ] Put more meaningful tests
