@@ -579,6 +579,17 @@ class BlockManager(metaclass=SingletonMeta):
         self._db_engine = engine
         return True
     
+    async def get_db_session(self):
+        """
+        Gets the database session for the blocks.
+
+        Returns:
+            Any: The database session for the blocks.
+        """
+        from sqlmodel import Session
+        with Session(self.get_db_engine()) as session:
+            yield session
+    
     # App settings
     @property
     def app_config(self):
