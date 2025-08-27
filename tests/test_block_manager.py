@@ -20,10 +20,10 @@ def block_manager_instance(tmp_path):
     # Ensure the blockmanager directory exists within the temporary working directory
     block_manager_path = tmp_path / "blockmanager"
     block_manager_path.mkdir(exist_ok=True)
-    return BlockManager(working_dir=str(tmp_path), late_load=True)
+    return BlockManager(working_dir=tmp_path, late_load=True)
 
 def test_save_block_hashes(tmp_block_dir, block_manager_instance):
-    block_manager_instance._save_block_hashes(str(tmp_block_dir))
+    block_manager_instance._save_block_hashes(tmp_block_dir)
     
     hashes_file = tmp_block_dir.parent / "blockmanager" / "block_hashes.json"
     assert hashes_file.exists()
@@ -33,7 +33,7 @@ def test_save_block_hashes(tmp_block_dir, block_manager_instance):
     
     block_name = tmp_block_dir.name
     assert block_name in hashes
-    expected_hash = dirhash(str(tmp_block_dir), 'sha256', match=["*.py", "*.toml"])
+    expected_hash = dirhash(tmp_block_dir, 'sha256', match=["*.py", "*.toml"])
     assert hashes[block_name] == expected_hash
 
 def test_verify_block_hash_verify_blocks_false(block_manager_instance):
@@ -47,22 +47,22 @@ def test_verify_block_hash_no_hashes_file(tmp_block_dir, block_manager_instance)
     if hashes_file.exists():
         os.remove(hashes_file)
     
-    assert block_manager_instance._verify_block_hash(str(tmp_block_dir)) == True
+    assert block_manager_instance._verify_block_hash(tmp_block_dir) == True
 
 def test_verify_block_hash_match(tmp_block_dir, block_manager_instance):
     block_manager_instance.verify_blocks = True
-    block_manager_instance._save_block_hashes(str(tmp_block_dir))
+    block_manager_instance._save_block_hashes(tmp_block_dir)
     
-    assert block_manager_instance._verify_block_hash(str(tmp_block_dir)) == True
+    assert block_manager_instance._verify_block_hash(tmp_block_dir) == True
 
 def test_verify_block_hash_no_match(tmp_block_dir, block_manager_instance):
     block_manager_instance.verify_blocks = True
-    block_manager_instance._save_block_hashes(str(tmp_block_dir))
+    block_manager_instance._save_block_hashes(tmp_block_dir)
     
     # Modify a file to change the hash
     (tmp_block_dir / "file1.py").write_text("print('hello world')")
     
-    assert block_manager_instance._verify_block_hash(str(tmp_block_dir)) == False
+    assert block_manager_instance._verify_block_hash(tmp_block_dir) == False
 
 def test_block_manager_init_no_block_infos_toml(tmp_path):
     # This test expects an exception because block_infos.toml does not exist
@@ -77,7 +77,7 @@ def test_block_manager_init_no_block_infos_toml(tmp_path):
         del BlockManager._instances[BlockManager]
 
     with pytest.raises(Exception, match="No block_infos.toml found. Please run setup first"):
-        BlockManager(working_dir=str(tmp_path), late_load=False)
+        BlockManager(working_dir=tmp_path, late_load=False)
 
 def test_basic(test_app, block_manager_instance):
     block_manager_instance.init_app(test_app.app)

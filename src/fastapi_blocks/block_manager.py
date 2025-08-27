@@ -1,6 +1,7 @@
 from types import ModuleType
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import SettingsConfigDict, BaseSettings
 from typing import Optional, List, Any, Dict
+from pathlib import Path
 
 from fastapi import FastAPI, APIRouter
 from fastapi.templating import Jinja2Templates
@@ -13,14 +14,15 @@ from .settings import BlockSettingsBase, BlockSettingsMixin
 from dirhash import dirhash
 
 import logging
-import os
 import importlib
-import toml
+import tomllib
+import tomli_w
 import subprocess
 import sys
 import inspect
 import threading
 import json
+import os
 
 class SingletonMeta(type):
     _instances = {}
@@ -56,9 +58,11 @@ class BlockManager(metaclass=SingletonMeta):
     api_router: APIRouter = APIRouter(prefix='/api')
     
     templates : Optional[Environment] = None
+    templates_globals : Dict = {}
     _db_engine : Optional[Any] = None
+    _app_config : Optional[BaseSettings] = None
     
-    working_dir: str = os.getcwd()
+    working_dir: Path = Path.cwd()
     block_manager_folder : str = "blockmanager"
     block_manager_info: dict = {}
     
@@ -120,10 +124,12 @@ class BlockManager(metaclass=SingletonMeta):
         # Use app logger if exists
         self.logger = app_instance.logger if hasattr(app_instance, 'logger') else self.logger
         
-        
         # Setup Templates
         if not self.templates and "templates_dir" in self.block_manager_info.keys() and self.block_manager_info["templates_dir"] != "":
             jinja2env = Environment(loader=FileSystemLoader(self.block_manager_info["templates_dir"]))
+            for key, value in self.templates_globals.items():
+                jinja2env.globals[key] = value
+            
             self.templates = Jinja2Templates(env=jinja2env)
             
         if not "blocks" in self.block_manager_info.keys():
@@ -137,13 +143,15 @@ class BlockManager(metaclass=SingletonMeta):
             
             # Verify block hash
             block_path = block_info.get('block_path', None)
-            self.logger.info("Verifying hash for %s", block_path)
-            if not self._verify_block_hash(block_path):
-                message = (f"Block hash mismatch for @ '{block_path}'. " \
-                                "Block might have been tampered with or changed. " \
-                                "Please run `python -m fastapi_blocks setup --save-hashes` to update the hash.")
-                self.logger.warning(message)
-                os._exit(0)
+            
+            if self.verify_blocks:
+                self.logger.info("Verifying hash for %s", block_path)
+                if not self._verify_block_hash(block_path):
+                    message = (f"Block hash mismatch for @ '{block_path}'. " \
+                                    "Block might have been tampered with or changed. " \
+                                    "Please run `python -m fastapi_blocks setup --save-hashes` to update the hash.")
+                    self.logger.warning(message)
+                    os._exit(0)
             
             self.logger.info("Prepping: %s", block_name)
             
@@ -152,10 +160,10 @@ class BlockManager(metaclass=SingletonMeta):
                 self._run_hooks(self._hooks_block_preload, block_info=block_info)
                         
                 # Mount statics
-                if block_info.get('statics', None) and os.path.exists(block_info['statics']):
+                if block_info.get('statics', None) and Path(block_info['statics']).exists():
                     app_instance.mount(
                         f"/{block_name}/static", 
-                        StaticFiles(directory=block_info['statics']), 
+                        StaticFiles(directory=block_info['statics']),
                         name=f"{block_name}-static"
                     )
                     self.logger.info("Mounted statics for %s", block_name)
@@ -188,7 +196,7 @@ class BlockManager(metaclass=SingletonMeta):
         
         return app_instance
     
-    def _build_block_settings_class(self,) -> BlockSettingsBase:
+    def _build_block_settings_class(self) -> BlockSettingsBase:
         # Build settings class
         extra_settings_classes = []
         if self.block_manager_info["extra_block_settings"]:
@@ -209,7 +217,7 @@ class BlockManager(metaclass=SingletonMeta):
     
         return DynamicBlockSettings
     
-    def _setup(self, run_hooks : bool = True) -> bool:
+    def _setup(self, run_hooks : bool = True, save_hashes : bool = False) -> bool:
         """
         Sets up the BlockManager.
         """
@@ -244,7 +252,7 @@ class BlockManager(metaclass=SingletonMeta):
             if "settings" not in self.block_manager_info.keys():
                 self.block_manager_info["settings"] = {}
         
-        has_changes = self._setup_blocks()
+        has_changes = self._setup_blocks(save_hashes=save_hashes)
         has_changes = self._setup_hooks() or has_changes
         
         self._save_settings_toml()
@@ -254,7 +262,7 @@ class BlockManager(metaclass=SingletonMeta):
         
         return has_changes
     
-    def _setup_blocks(self) -> bool:
+    def _setup_blocks(self, save_hashes : bool = False) -> bool:
         """
         Sets up the BlockManager by discovering blocks and installing their dependencies.
 
@@ -262,24 +270,27 @@ class BlockManager(metaclass=SingletonMeta):
             bool: True if new dependencies were installed, False otherwise.
         """
         HAS_INSTALLS = False
-        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        projects_root_dir = self.working_dir / self.blocks_folder
         dynamic_block_class = self._build_block_settings_class()
     
         # Look for block_config.toml under some projects_root_dir
-        if os.path.exists(projects_root_dir):
-            for item in os.scandir(projects_root_dir):
+        if projects_root_dir.exists():
+            for item in projects_root_dir.iterdir():
                 try:
-                    block_config_path = os.path.join(item.path, "block_config.toml")
+                    block_config_path = item / "block_config.toml"
                     
                     # Look for folders with block_config.toml
-                    if item.is_dir() and os.path.exists(block_config_path):
+                    if item.is_dir() and block_config_path.exists():
                         
-                        new_installs = self._load_block_config(item.path, block_config_path, settings_class=dynamic_block_class)
+                        new_installs = self._load_block_config(item, block_config_path, settings_class=dynamic_block_class)
                         HAS_INSTALLS = HAS_INSTALLS or new_installs
+                        
+                        if save_hashes:
+                            self._save_block_hashes(item)
                         
                 except Exception as e:
                     if not self.allow_block_import_failure:
-                        error_msg = f"Failed to import block config at path: {item.path}: {e}"
+                        error_msg = f"Failed to import block config at path: {item}: {e}"
                         raise Exception(error_msg)
         else:
             raise Exception("No blocks folder found")
@@ -309,50 +320,50 @@ class BlockManager(metaclass=SingletonMeta):
         if not self.verify_blocks:
             return True
 
-        hashes_file = os.path.join(self.working_dir, self.block_manager_folder, 'block_hashes.json')
-        if os.path.exists(hashes_file):
+        hashes_file = self.working_dir / Path(self.block_manager_folder) / 'block_hashes.json'
+        if hashes_file.exists():
             with open(hashes_file, 'r') as f:
                 hashes = json.load(f)
         else:
             hashes = {}
 
-        block_name = os.path.basename(block_path)
+        block_name = Path(block_path).name
         if block_name not in hashes:
             hashes[block_name] = {}
             return True
 
-        dir_hash = dirhash(block_path, 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
+        dir_hash = dirhash(str(block_path), 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
         
         return dir_hash == hashes[block_name]
 
-    def _save_block_hashes(self, block_path: str) -> None:
+    def _save_block_hashes(self, block_path: Path) -> None:
         """
         Saves the hash of the block files.
         """
-        hashes_file = os.path.join(self.working_dir, self.block_manager_folder, 'block_hashes.json')
-        if os.path.exists(hashes_file):
+        hashes_file = self.working_dir / Path(self.block_manager_folder) / 'block_hashes.json'
+        if hashes_file.exists():
             with open(hashes_file, 'r') as f:
                 hashes = json.load(f)
         else:
             hashes = {}
 
-        block_name = os.path.basename(block_path)
-        hashes[block_name] = dirhash(block_path, 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
+        block_name = block_path.name
+        hashes[block_name] = dirhash(str(block_path), 'sha256', match=["*.py", "*.toml", "*.html", "*.js"])
 
         with open(hashes_file, 'w') as f:
             json.dump(hashes, f, indent=4)
 
     def _load_block_config(self, 
-            block_path: str, 
-            config_path : str,
+            block_path: Path, 
+            config_path : Path,
             settings_class : BlockSettingsBase
         ) -> bool:
         
         requires_restart = False
         
         # Load Settings
-        with open(config_path, 'r') as f:
-            block_config = toml.load(f)
+        with open(config_path, 'rb') as f:
+            block_config = tomllib.load(f)
             
         # Extract the 'block' section if it exists, otherwise use the whole config
         block_settings_data = block_config.get('block', block_config)
@@ -377,7 +388,7 @@ class BlockManager(metaclass=SingletonMeta):
                     self.block_manager_info["blocks"][block_settings.name][key] = items
             
         # Check if extra block settings in settings, else require restart
-        if block_info_dict['extra_block_settings'] and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
+        if 'extra_block_settings' in block_info_dict.keys() and block_info_dict['extra_block_settings'] not in self.block_manager_info['extra_block_settings']:
             self.block_manager_info["extra_block_settings"].append(block_info_dict['extra_block_settings'])
             requires_restart = True
         
@@ -403,7 +414,7 @@ class BlockManager(metaclass=SingletonMeta):
                         )
                         
         # Templates dir
-        if block_info_dict['templates_dir'] and block_info_dict['templates_dir'] not in self.block_manager_info["templates_dir"]:
+        if 'templates_dir' in block_info_dict.keys() and block_info_dict['templates_dir'] not in self.block_manager_info["templates_dir"]:
             self.block_manager_info["templates_dir"].append(block_info_dict['templates_dir'])
             requires_restart = True
                 
@@ -419,25 +430,25 @@ class BlockManager(metaclass=SingletonMeta):
         """
         requires_restart = False
         
-        projects_root_dir = os.path.join(self.working_dir, self.blocks_folder)
+        projects_root_dir = self.working_dir / self.blocks_folder
         dynamic_block_class = self._build_block_settings_class()
         
         # Look for block_config.toml under some projects_root_dir
-        if os.path.exists(projects_root_dir):
-            for item in os.scandir(projects_root_dir):
+        if projects_root_dir.exists():
+            for item in projects_root_dir.iterdir():
                 try:
-                    block_config_path = os.path.join(item.path, "block_config.toml")
+                    block_config_path = item / "block_config.toml"
                     
                     # Look for folders with block_config.toml
-                    if item.is_dir() and os.path.exists(block_config_path):
+                    if item.is_dir() and block_config_path.exists():
                         # Load Settings
-                        with open(block_config_path, 'r') as f:
-                            block_config = toml.load(f)
+                        with open(block_config_path, 'rb') as f:
+                            block_config = tomllib.load(f)
                             
                         # Extract the 'block' section if it exists, otherwise use the whole config
                         block_settings_data = block_config.get('block', block_config)
                             
-                        block_settings = dynamic_block_class(**block_settings_data, block_path=item.path)
+                        block_settings = dynamic_block_class(**block_settings_data, block_path=item)
                         
                         # Hooks
                         block_hooks_setup = block_settings._setup_hooks()
@@ -452,7 +463,7 @@ class BlockManager(metaclass=SingletonMeta):
                         
                 except Exception as e:
                     if not self.allow_block_import_failure:
-                        error_msg = f"Failed to import block config at path: {item.path}: {e}"
+                        error_msg = f"Failed to import block config at path: {item}: {e}"
                         raise Exception(error_msg)
         else:
             raise Exception("No blocks folder found")
@@ -567,6 +578,29 @@ class BlockManager(metaclass=SingletonMeta):
             return False
         self._db_engine = engine
         return True
+    
+    async def get_db_session(self):
+        """
+        Gets the database session for the blocks.
+
+        Returns:
+            Any: The database session for the blocks.
+        """
+        from sqlmodel import Session
+        with Session(self.get_db_engine()) as session:
+            yield session
+    
+    # App settings
+    @property
+    def app_config(self):
+        if self._app_config is None:
+            raise Exception("No app config found")
+        return self._app_config
+    
+    @app_config.setter
+    def app_config(self, value):
+        self._app_config = value
+        
 
     # Settings 
     def _load_settings_toml(self):
@@ -574,14 +608,14 @@ class BlockManager(metaclass=SingletonMeta):
         Loads the settings from the block_infos.toml file.
         """
         
-        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
+        toml_path = self.working_dir / Path(self.block_manager_folder) / 'block_infos.toml'
         
-        if not os.path.exists(toml_path):
+        if not toml_path.exists():
             self.logger.warning("No block_infos.toml found. Please run setup first")
             raise Exception("No block_infos.toml found. Please run setup first")
         else:
-            with open(toml_path, 'r') as f:
-                self.block_manager_info = toml.load(f)
+            with open(toml_path, 'rb') as f:
+                self.block_manager_info = tomllib.load(f)
                 
                 self.allow_installs = self.block_manager_info["settings"].get("allow_installs", False) or self.allow_installs
                 self.blocks_folder = self.block_manager_info["settings"].get("blocks_folder", self.blocks_folder)
@@ -591,16 +625,17 @@ class BlockManager(metaclass=SingletonMeta):
         """
         Saves the settings to the block_infos.toml file.
         """
-        if not os.path.exists(os.path.join(self.working_dir, self.block_manager_folder)):
-            print(f"DEBUG: Creating directory: {os.path.join(self.working_dir, self.block_manager_folder)}")
-            os.mkdir(os.path.join(self.working_dir, self.block_manager_folder))
-            print(f"DEBUG: Directory created: {os.path.exists(os.path.join(self.working_dir, self.block_manager_folder))}")
+        block_manager_path = self.working_dir / Path(self.block_manager_folder)
+        if not block_manager_path.exists():
+            print(f"DEBUG: Creating directory: {block_manager_path}")
+            block_manager_path.mkdir()
+            print(f"DEBUG: Directory created: {block_manager_path.exists()}")
             
         self.block_manager_info["settings"]["allow_installs"] = self.allow_installs
         self.block_manager_info["settings"]["blocks_folder"] = self.blocks_folder
         self.block_manager_info["settings"]["verify_blocks"] = self.verify_blocks
         
         # save toml 
-        toml_path = os.path.join(self.working_dir, self.block_manager_folder, 'block_infos.toml')
-        with open(toml_path, 'w') as f:
-            toml.dump(self.block_manager_info, f)
+        toml_path = block_manager_path / 'block_infos.toml'
+        with open(toml_path, 'wb') as f:
+            tomli_w.dump(self.block_manager_info, f)

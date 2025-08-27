@@ -1,8 +1,8 @@
-name = "Example Block"
+[block]
+name = "home"
 statics = "statics"
 version = "0.1"
-template_router = "router" # Default: router.py
-api_router = "api_router" # Default: api_router.py
-requirements = ["requests"]
+template_router = "router"
+api_router = "api_router"
+requirements = []
 extra_block_settings = "settings"
-is_main = true

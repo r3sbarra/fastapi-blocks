@@ -1,13 +1,12 @@
 import argparse
 import shutil
-import os
 from typing import Union
 from pathlib import Path
 import importlib
 
-def setup(folder : Union[str, None] = None, 
-          auto_install : bool = False, 
-          save_hashes_flag: bool = False, 
+def setup(folder : Union[str, None] = None,
+          auto_install : bool = False,
+          save_hashes_flag: bool = False,
           verify_blocks_flag: bool = False
     ):
     """
@@ -15,55 +14,73 @@ def setup(folder : Union[str, None] = None,
     """
     from fastapi_blocks import BlockManager
     
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     
     if folder:
-        if not os.path.exists(os.path.join(cwd, folder)):
-            os.mkdir(os.path.join(cwd, folder))
+        folder_path = cwd / folder
+        if not folder_path.exists():
+            folder_path.mkdir()
     
         manager = BlockManager(
             blocks_folder=folder, 
             late_load=True, 
             allow_installs=auto_install, 
-            save_hashes=save_hashes_flag, 
             verify_blocks=verify_blocks_flag
         )
     else:
         manager = BlockManager(
-            blocks_folder=folder,
             allow_installs=auto_install, 
-            save_hashes=save_hashes_flag, 
             verify_blocks=verify_blocks_flag
         )
     
-    if manager._setup(run_hooks=True):
-        print(f"Setup complete. Folder: {folder}")
-    else:
-        with open(os.path.join(cwd, ".gitignore"), "r") as f:
-            lines = f.readlines()
-        if "blockmanager/\n" not in lines:
-            with open(os.path.join(cwd, ".gitignore"), "a") as f:
-                f.write("\nblockmanager/\n")
-                
-    print("setup complete")
+    if not manager._setup(run_hooks=True, save_hashes=save_hashes_flag):
+        # If hasn't been setup before, add to gitignore.
+        gitignore_path = cwd / ".gitignore"
+        if gitignore_path.exists():
+            with open(gitignore_path, "r") as f:
+                lines = f.read()
+            if "blockmanager/" not in lines:
+                with open(gitignore_path, "a") as f:
+                    f.write("\nblockmanager/\n")
+        else:
+            with open(gitignore_path, "w") as f:
+                f.write("blockmanager/\n")
+
+    print(f"Setup complete. Folder: {manager.blocks_folder}\n")
 
 
-def make_block(block_name):
+def make_block(block_name : str, run_setup : bool):
     """
     Creates a new block.
     """
     from fastapi_blocks import BlockManager
-    cwd = os.getcwd()
-    block_manager = BlockManager()
-    block_manager._load_settings_toml()
+    cwd = Path.cwd()
+    
+    try:
+        block_manager = BlockManager()
+    except Exception as e:
+        print(f"Error: {e}")
+        return
     
     if not block_manager.block_manager_info:
-        print(f"Error: 'block_manager_info' is empty. Start the app at least once")
+        print(f"Error: 'block_manager_info' is empty. Please run setup first")
         return
+    
+    # Get extra settings from blockmanager
+    extra_settings_class = block_manager._build_block_settings_class()
+    
+    temp_class = extra_settings_class(
+        name=block_name, 
+        version="0.1"
+    )
+    extra_settings_dict = temp_class.get_dict()
+    extra_settings_dict["template_router"] = "router"
+    extra_settings_dict["api_router"] = "api_router"
+    extra_settings_dict["extra_block_settings"] = "settings"
     
     # copy placeholder
     source = Path(__file__).parent / "default_blocks" / "block_template"
-    dest = Path.cwd() / "blocks" / block_name
+    dest = Path.cwd() / block_manager.blocks_folder / block_name
     
     if dest.exists():
         print(f"Error: '{block_name}' already exists.")
@@ -72,38 +89,33 @@ def make_block(block_name):
     print(f"Copying 'block_template' to '{dest}'...")
     shutil.copytree(source, dest)
     print("Initialization complete.")
-    with open(os.path.join(cwd, ".gitignore"), "r") as f:
-        lines = f.readlines()
-    if "block_infos.toml\n" not in lines:
-        with open(os.path.join(cwd, ".gitignore"), "a") as f:
+    
+    # Make toml
+    toml_path = dest / "block_config.toml"
+    import tomli_w
+    
+    with open(toml_path, "wb") as f:
+        tomli_w.dump(extra_settings_dict, f)
+        
+    # gitignore
+    
+    gitignore_path = cwd / ".gitignore"
+    if gitignore_path.exists():
+        with open(gitignore_path, "r") as f:
+            lines = f.read()
+        if "block_infos.toml" not in lines:
+            with open(gitignore_path, "a") as f:
+                f.write("\nblock_infos.toml\n")
+    else:
+        with open(gitignore_path, "w") as f:
             f.write("block_infos.toml\n")
             
-    print("setup complete")
-
-
-def make_block(block_name):
-    """
-    Creates a new block.
-    """
-    from fastapi_blocks import BlockManager
-    block_manager = BlockManager()
-    block_manager._load_settings_toml()
-    
-    if not block_manager.block_manager_info:
-        print(f"Error: 'block_manager_info' is empty. Start the app at least once")
-        return
-    
-    # copy placeholder
-    source = Path(__file__).parent / "default_blocks" / "block_template"
-    dest = Path.cwd() / "blocks" / block_name
-    
-    if dest.exists():
-        print(f"Error: '{block_name}' already exists.")
-        return
-    
-    print(f"Copying 'block_template' to '{dest}'...")
-    shutil.copytree(source, dest)
-    print("Initialization complete.")
+    # Run setup
+    if run_setup:
+        print("Running setup...")
+        block_manager._setup(run_hooks=True)
+            
+    print("Block creation complete")
 
 
 def init_project():
@@ -142,23 +154,16 @@ def main():
     # Create command
     parser_create = subparsers.add_parser("create", help="Creates a new block.")
     parser_create.add_argument("block_name", type=str, help="The name of the block to create.")
-
-    # Verify command
-    parser_verify = subparsers.add_parser("verify", help="Enables or disables block verification.")
-    parser_verify.add_argument("status", type=str, choices=['on', 'off'], help="The status of block verification.")
-
-    # Example command
-    parser_hello = subparsers.add_parser("hello", help="Prints a hello message.")
-    parser_hello.add_argument("name", type=str, help="The name to say hello to.")
+    parser_create.add_argument("--setup", "-S", action="store_true", help="Run setup", default=False)
 
     args = parser.parse_args()
 
     if args.command == "init":
         init_project()
-    elif args.command == "hello":
-        print(f"Hello, {args.name}!")
     elif args.command == "setup":
         setup(args.folder, args.auto_install, args.save_hashes, args.verify_blocks)
+    elif args.command == "create":
+        make_block(args.block_name, args.setup)
     else:
         parser.print_help()
         

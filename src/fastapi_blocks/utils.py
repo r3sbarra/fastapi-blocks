@@ -1,7 +1,7 @@
 import string
 import random
-import os
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 def generate_random_name(length=8, prefix : str = '', exclude : list = []):
     letters = string.ascii_lowercase
@@ -10,29 +10,33 @@ def generate_random_name(length=8, prefix : str = '', exclude : list = []):
         return generate_random_name(length, exclude)
     return name
 
-def path_to_module(path : str, working_path : str = None) -> Optional[str]:
+def path_to_module(path: Union[str, Path], working_path: Union[str, Path] = None) -> Optional[str]:
     """
     Converts a path to a module.
 
     Args:
-        path (str): The path to convert.
-        working_path (str, optional): The working path. Defaults to None.
+        path (Union[str, Path]): The path to convert.
+        working_path (Union[str, Path], optional): The working path. Defaults to None.
 
     Returns:
         Optional[str]: The module path.
     """
     if not path:
         return None
-    working_path = working_path or os.getcwd()
     
-    # Ensure the path is absolute before making it relative
-    if not os.path.isabs(path):
-        path = os.path.join(working_path, path)
+    working_path = Path(working_path or Path.cwd())
+    path = Path(path)
 
-    rel_path = os.path.relpath(path, working_path)
+    if not path.is_absolute():
+        path = working_path / path
 
-    if rel_path.endswith('.py'):
-        rel_path = rel_path[:-3]
-    
-    module_path = rel_path.replace(os.path.sep, '.')
-    return module_path
+    try:
+        rel_path = path.relative_to(working_path)
+    except ValueError:
+        return str(path)
+
+
+    if rel_path.suffix == '.py':
+        rel_path = rel_path.with_suffix('')
+
+    return '.'.join(rel_path.parts)
