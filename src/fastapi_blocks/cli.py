@@ -12,7 +12,7 @@ def setup(folder : Union[str, None] = None,
     """
     Run setup
     """
-    from fastapi_blocks import BlockManager
+    from fastapi_blocks import block_manager
     
     cwd = Path.cwd()
     
@@ -21,17 +21,12 @@ def setup(folder : Union[str, None] = None,
         if not folder_path.exists():
             folder_path.mkdir()
     
-        manager = BlockManager(
-            blocks_folder=folder, 
-            late_load=True, 
-            allow_installs=auto_install, 
-            verify_blocks=verify_blocks_flag
-        )
+        block_manager.blocks_folder = folder
+        block_manager.allow_installs = auto_install
+        block_manager.verify_blocks = verify_blocks_flag
     else:
-        manager = BlockManager(
-            allow_installs=auto_install, 
-            verify_blocks=verify_blocks_flag
-        )
+        block_manager.allow_installs = auto_install
+        block_manager.verify_blocks = verify_blocks_flag
     
     if not manager._setup(run_hooks=True, save_hashes=save_hashes_flag):
         # If hasn't been setup before, add to gitignore.
@@ -53,11 +48,12 @@ def make_block(block_name : str, run_setup : bool):
     """
     Creates a new block.
     """
-    from fastapi_blocks import BlockManager
+    from fastapi_blocks import block_manager
     cwd = Path.cwd()
     
     try:
-        block_manager = BlockManager()
+        # block_manager late loads by default so this should be fine
+        pass
     except Exception as e:
         print(f"Error: {e}")
         return

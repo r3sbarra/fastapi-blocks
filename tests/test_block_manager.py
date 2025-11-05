@@ -72,10 +72,6 @@ def test_block_manager_init_no_block_infos_toml(tmp_path):
         import shutil
         shutil.rmtree(block_manager_path)
 
-    # Ensure the BlockManager singleton is reset for this test
-    if BlockManager in BlockManager._instances:
-        del BlockManager._instances[BlockManager]
-
     with pytest.raises(Exception, match="No block_infos.toml found. Please run setup first"):
         BlockManager(working_dir=tmp_path, late_load=False)
 

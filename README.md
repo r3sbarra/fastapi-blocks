@@ -50,13 +50,12 @@ Additional flags:
 ## How to
 
 ### Register Jinja funcs for shared templates
-In order to allow other blocks to access functions via jinja, you would need to add the functions via hook into `BlockManager().templates_globals`, the key being the name of the function to call from jinja, and the value being the function itself.
+In order to allow other blocks to access functions via jinja, you would need to add the functions via hook into `block_manager.templates_globals`, the key being the name of the function to call from jinja, and the value being the function itself.
 
 eg.
 ```python
-def register_jinja_funcs(**kwargs):
-    from fastapi_blocks import BlockManager
-    BlockManager().templates_globals['has_role'] = has_role
+def register_jinja_funcs(block_manager, **kwargs):
+    block_manager.templates_globals['has_role'] = has_role
 
 class Settings(BlockSettingsMixin):
     
