@@ -118,3 +118,4 @@ block_infos.toml
 
 # LLM
 GEMINI.md
+blockmanager/
